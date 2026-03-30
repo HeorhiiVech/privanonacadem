@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}LTA South Tournament Stats{% endblock %}
+{% block title %}Champions Stats{% endblock %}
 
 {% block content %}
     {# Добавлены стили для First Wards прямо в HTML для этого примера #}
@@ -90,7 +90,7 @@
     </style>
 
     <div class="header-controls">
-        <h1>Tournament Stats</h1>
+        <h1>Champions Stats</h1>
         <div class="controls">
             <form action="{{ url_for('update_hll_route', team=selected_team, side_filter=selected_side_filter) }}" method="post" style="display: inline-block; margin-right: 20px;">
                 <button type="submit" class="button button-update">Update Tournament Data (Dont click)</button>
@@ -555,7 +555,7 @@
 
             <hr>
 
-            <h4>Draft Patterns <span style="font-size: 0.8em; color: var(--text-secondary);">(Calculated based on games played by {{ selected_team }})</span></h4>
+            <!--<h4>Draft Patterns <span style="font-size: 0.8em; color: var(--text-secondary);">(Calculated based on games played by {{ selected_team }})</span></h4>
             <div class="draft-patterns-container">
                 <div class="draft-pattern-block blue-side-pattern">
                     <h5>Blue Side Patterns</h5>
@@ -626,7 +626,7 @@
             </div>
             <hr>
 
-            <h4>Jungle Pathing History</h4>
+           <!-- <h4>Jungle Pathing History</h4>
             <div class="table-responsive" style="margin-bottom: 1.5rem;">
                 <table class="jungle-path-history-table">
                     <thead>
@@ -679,7 +679,7 @@
                             </tr>
                         {% endif %}
                     </tbody>
-                </table>
+                </table>-->
             </div>
             <hr>
 

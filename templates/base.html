@@ -15,7 +15,7 @@
             <a href="{{ url_for('index') }}" class="sidebar-brand">paiN Gaming</a>
             <ul class="sidebar-nav">
                 <li><a href="{{ url_for('scrims') }}" class="nav-link {% if request.endpoint == 'scrims' %}active{% endif %}">Scrims</a></li>
-                <li><a href="{{ url_for('tournament') }}" class="nav-link {% if request.endpoint == 'tournament' %}active{% endif %}">Teams</a></li>
+                <li><a href="{{ url_for('tournament') }}" class="nav-link {% if request.endpoint == 'tournament' %}active{% endif %}">Champions</a></li>
                 <li><a href="{{ url_for('jng_clear') }}" class="nav-link {% if request.endpoint == 'jng_clear' %}active{% endif %}">JNG Clear</a></li>
                 <li><a href="{{ url_for('objects') }}" class="nav-link {% if request.endpoint == 'objects' %}active{% endif %}">Objects</a></li>
                 <li><a href="{{ url_for('swap') }}" class="nav-link {% if request.endpoint == 'swap' %}active{% endif %}">Swap</a></li>

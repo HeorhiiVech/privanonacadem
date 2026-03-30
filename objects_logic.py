@@ -81,6 +81,10 @@ def _process_side_data(all_games, all_events, team_tag, side_filter, output_stat
     elif side_filter == "red": games_on_side = [g for g in all_games if g['Red_Team_Name'] == team_tag]
     
     total_games = len(games_on_side)
+    
+    # Добавляем ключ до раннего выхода, чтобы Jinja шаблон не падал с ошибкой UndefinedError
+    output_stats['total_games'] = total_games 
+    
     if total_games == 0:
         output_stats['message'] = f"No games played on {side_filter} side."
         return
@@ -88,11 +92,8 @@ def _process_side_data(all_games, all_events, team_tag, side_filter, output_stat
     game_ids_on_side = {g['Game_ID'] for g in games_on_side}
     events_on_side = [e for e in all_events if e['game_id'] in game_ids_on_side]
 
-    output_stats['total_games'] = total_games
     output_stats['drakes'] = _calculate_drake_stats(games_on_side, events_on_side, team_tag)
     output_stats['voidgrubs'] = _calculate_voidgrub_stats(games_on_side, events_on_side, team_tag)
-    # --- ИЗМЕНЕНИЕ: Считаем статистику по objective_type 'ATAKHAN' ---
-    output_stats['atakhan'] = _calculate_generic_objective_stats(games_on_side, events_on_side, team_tag, 'ATAKHAN')
     output_stats['heralds'] = _calculate_generic_objective_stats(games_on_side, events_on_side, team_tag, 'HERALD')
     output_stats['barons'] = _calculate_generic_objective_stats(games_on_side, events_on_side, team_tag, 'BARON')
     output_stats['first_tower'] = _calculate_ft_stats(games_on_side, events_on_side, team_tag)
@@ -121,12 +122,12 @@ def _calculate_drake_stats(games, events, team_tag):
         is_blue = game['Blue_Team_Name'] == team_tag
         our_team_id = 100 if is_blue else 200
         
-        # --- ИЗМЕНЕНИЕ: Исключаем ELDER и ATAKHAN из подсчета обычных драконов ---
+        # Убрали ATAKHAN из исключений, так как его больше нет в игре
         drakes_in_game = sorted([
             e for e in events 
             if e['game_id'] == game_id 
             and e['objective_type'] == 'DRAGON' 
-            and e['objective_subtype'] not in ['ELDER', 'ATAKHAN']
+            and e['objective_subtype'] not in ['ELDER']
         ], key=lambda x: x['timestamp_ms'])
         
         our_drake_count = 0

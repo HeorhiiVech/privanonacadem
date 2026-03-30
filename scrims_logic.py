@@ -124,7 +124,7 @@ def get_rest_request(endpoint, retries=5, initial_delay=2, expected_type='json')
     log_message(f"REST GET failed after {retries} attempts for {endpoint}. Last error: {last_exception}")
     return None
 
-def get_all_series(days_ago=10):
+def get_all_series(days_ago=40):
     """ Получает список ID и дат начала LoL скримов за последние N дней """
     query_string = """
         query ($filter: SeriesFilter, $first: Int, $after: Cursor, $orderBy: SeriesOrderBy, $orderDirection: OrderDirection) {
@@ -223,7 +223,7 @@ def extract_team_tag(riot_id_game_name):
 # --- Функция обновления и сохранения данных скримов в SQLite (Без изменений от HLL) ---
 def fetch_and_store_scrims():
     log_message("Starting scrims update process...")
-    series_list = get_all_series(days_ago=10)
+    series_list = get_all_series(days_ago=40)
     if not series_list: 
         log_message("No recent series found.")
         return 0
@@ -661,8 +661,8 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
             game_id = str(game.get("Game_ID") or game.get("Game ID") or "N/A")
             result = game.get("Result", "Unknown")
             
-            is_our_blue = game.get("Blue_Team_Name") == "paiN Gaming"
-            is_our_red = game.get("Red_Team_Name") == "paiN Gaming"
+            is_our_blue = game.get("Blue_Team_Name") == "Bushido Wildcats"
+            is_our_red = game.get("Red_Team_Name") == "Bushido Wildcats"
             
             if is_our_blue:
                 if result == "Win": overall_stats["blue_wins"] += 1
