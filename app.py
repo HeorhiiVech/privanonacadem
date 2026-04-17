@@ -118,20 +118,23 @@ def scrims():
         selected_side_filter = 'all'
 
     try:
-        overall_stats, history_list, player_stats, _ = aggregate_scrim_data(
+        # Теперь функция возвращает статистику оппонентов и список команд
+        overall_stats, history_list, player_stats, opponent_stats, opponent_teams, _ = aggregate_scrim_data(
             time_filter=selected_time_filter,
             side_filter=selected_side_filter
         )
     except Exception as e:
         log_message(f"Error in /scrims data aggregation: {e}")
         flash(f"Error loading scrim data: {e}", "error")
-        overall_stats, history_list, player_stats = {}, [], {}
+        overall_stats, history_list, player_stats, opponent_stats, opponent_teams = {}, [], {}, {}, []
 
     return render_template(
         'scrims.html',
         overall_stats=overall_stats,
         history=history_list,
         player_stats=player_stats,
+        opponent_stats=opponent_stats, # Передаем новые данные
+        opponent_teams=opponent_teams, # Передаем новые данные
         time_filters=time_filters,
         selected_time_filter=selected_time_filter,
         selected_side_filter=selected_side_filter
@@ -472,6 +475,46 @@ def swap():
         stats=stats
     )
 # --- КОНЕЦ НОВОГО МАРШРУТА ---
+@app.route('/fearless')
+def fearless():
+    # Загружаем список чемпионов из JSON файла
+    champions_data = {}
+    json_path = os.path.join(os.path.abspath(os.path.dirname(__file__)), 'champions_roles.json')
+    
+    if os.path.exists(json_path):
+        with open(json_path, 'r', encoding='utf-8') as f:
+            champions_data = json.load(f)
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    # Получаем историю сохраненных серий
+    cursor.execute("SELECT id, series_name, roster, last_updated FROM fearless_drafts ORDER BY last_updated DESC")
+    saved_drafts = cursor.fetchall()
+    conn.close()
+    
+    # Передаем и чемпионов, и историю в шаблон
+    return render_template('fearless.html', 
+                           saved_drafts=saved_drafts, 
+                           champions_by_role=champions_data)
 
+@app.route('/api/fearless/save', methods=['POST'])
+def save_fearless():
+    data = request.get_json()
+    series_name = data.get('series_name', 'New Series')
+    roster = data.get('roster', 'Main')
+    draft_data = json.dumps(data.get('draft_data', {}))
+    
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        INSERT INTO fearless_drafts (series_name, roster, draft_data, last_updated)
+        VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+    """, (series_name, roster, draft_data))
+    
+    conn.commit()
+    conn.close()
+    
+    return jsonify({"status": "success", "message": "Draft saved successfully."})
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5002, debug=True)

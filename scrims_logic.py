@@ -16,23 +16,39 @@ import math # Для округления
 GRID_API_KEY = os.getenv("GRID_API_KEY")
 GRID_BASE_URL = "https://api.grid.gg/"
 TEAM_NAME = "paiN Gaming" # HLL Team Name
-PLAYER_IDS = {"24422": "Robo", "23038": "PAIN CarioK", "23755": "PAIN tinowns", "25075": "PAIN TitaN", "23553": "PAIN Kuri"} # HLL Roster
-ROSTER_RIOT_NAME_TO_GRID_ID = {"Robo": "24422", "PAIN CarioK": "23038", "PAIN tinowns": "23755", "PAIN TitaN": "25075", "PAIN Kuri": "23553"} # HLL Roster
-PLAYER_ROLES_BY_ID = {"24422": "TOP", "23038": "JUNGLE", "23755": "MIDDLE", "25075": "BOTTOM", "23553": "UTILITY"} # HLL Roles
+PLAYER_IDS = {
+    #"23038": "PAIN CarioK", 
+    "20749": "Zoen",
+    "29529": " Levizin",
+    "29528": "Namiru",
+    "29543": "Marvin",
+    "25848": "Pipo"
+}
+ROSTER_RIOT_NAME_TO_GRID_ID = {
+    #"PAIN CarioK": "23038", 
+    "Zoen": "20749",
+    "Levizin": "29529",
+    "Namiru": "29528",
+    "Marvin": "29543",
+    "Pipo": "25848"
+}
+PLAYER_ROLES_BY_ID = {
+   # "23038": "JUNGLE", 
+    "20749": "TOP",
+    "29529": "JUNGLE",
+    "29528": "MIDDLE",
+    "29543": "BOTTOM",
+    "25848": "UTILITY"
+}
 API_REQUEST_DELAY = 0.5 # HLL Delay
 ROLE_ORDER_FOR_SHEET = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]
 PLAYER_NAME_MAP = {
-    "PAIN Extra 01": "PAIN tinowns",
-    "PAIN tinowns": "PAIN tinowns",
-    "PAIN Robo": "Robo", 
-    "PAIN Robo": "PAIN Robo",
     "PAIN CarioK": "PAIN CarioK",
-    "PAIN TitaN": "PAIN TitaN",
-    "PAIN Extra 09": "PAIN Marvin",
-    "PAIN Marvin":"PAIN Marvin",
-    "PAIN Kuri": "PAIN Kuri"
+    "CarioK": "PAIN CarioK",
 }
-PLAYER_DISPLAY_ORDER = ["PAIN Robo", "PAIN CarioK", "PAIN tinowns", "PAIN Marvin", "PAIN Kuri"]
+PLAYER_DISPLAY_ORDER = ["Zoen", "Levizin", "Namiru", "Marvin", "Pipo", "Gatovisck"]
+
+
 
 # --- Логирование ---
 def log_message(message):
@@ -124,7 +140,7 @@ def get_rest_request(endpoint, retries=5, initial_delay=2, expected_type='json')
     log_message(f"REST GET failed after {retries} attempts for {endpoint}. Last error: {last_exception}")
     return None
 
-def get_all_series(days_ago=40):
+def get_all_series(days_ago=8):
     """ Получает список ID и дат начала LoL скримов за последние N дней """
     query_string = """
         query ($filter: SeriesFilter, $first: Int, $after: Cursor, $orderBy: SeriesOrderBy, $orderDirection: OrderDirection) {
@@ -205,7 +221,7 @@ def download_riot_livestats_data(series_id, sequence_number):
 def normalize_player_name(riot_id_game_name):
     """ Удаляет известные командные префиксы из игрового имени Riot ID """
     if isinstance(riot_id_game_name, str):
-        known_prefixes = ["GSMC "] # Используем префикс HLL
+        known_prefixes = ["GSMC ","PAIN ", "PAIN ","PNGA"] # Используем префикс HLL
         for prefix in known_prefixes:
             if riot_id_game_name.startswith(prefix):
                 return riot_id_game_name[len(prefix):].strip()
@@ -223,7 +239,7 @@ def extract_team_tag(riot_id_game_name):
 # --- Функция обновления и сохранения данных скримов в SQLite (Без изменений от HLL) ---
 def fetch_and_store_scrims():
     log_message("Starting scrims update process...")
-    series_list = get_all_series(days_ago=40)
+    series_list = get_all_series(days_ago=8)
     if not series_list: 
         log_message("No recent series found.")
         return 0
@@ -264,6 +280,10 @@ def fetch_and_store_scrims():
         if not games_in_series: 
             time.sleep(API_REQUEST_DELAY / 2)
             continue
+            
+        # НОВОЕ: Скачиваем данные о драфте (grid end-state) для серии
+        series_end_state_data = get_rest_request(f"file-download/end-state/grid/series/{series_id}", expected_type='json')
+        time.sleep(API_REQUEST_DELAY / 2)
 
         for game_info in games_in_series:
             game_id = game_info.get("id")
@@ -275,6 +295,14 @@ def fetch_and_store_scrims():
             if not summary_data: 
                 time.sleep(API_REQUEST_DELAY)
                 continue
+                
+            # НОВОЕ: Получаем действия драфта для конкретной игры
+            current_game_draft_actions = []
+            if series_end_state_data and series_end_state_data.get("seriesState", {}).get("games"):
+                for game_state in series_end_state_data["seriesState"]["games"]:
+                    if game_state and game_state.get("sequenceNumber") == sequence_number:
+                        current_game_draft_actions = game_state.get("draftActions", [])
+                        break
 
             try:
                 participants = summary_data.get("participants", [])
@@ -391,6 +419,20 @@ def fetch_and_store_scrims():
                     row_dict[f"{player_col_prefix}_Runes"] = ",".join(all_runes) if all_runes else "0"
                     row_dict[f"{player_col_prefix}_Gold"] = p.get('goldEarned', 0)
 
+                # НОВОЕ: Обработка Draft Actions
+                if current_game_draft_actions and isinstance(current_game_draft_actions, list):
+                     actions_by_seq = {int(a["sequenceNumber"]): a for a in current_game_draft_actions if a.get("sequenceNumber") is not None}
+                     for i in range(1, 21):
+                         action = actions_by_seq.get(i)
+                         if action:
+                             drafter_info = action.get("drafter", {})
+                             draftable_info = action.get("draftable", {})
+                             row_dict[f"Draft_Action_{i}_Type"] = str(action.get("type", "N/A")).lower() if action.get("type") else "N/A"
+                             row_dict[f"Draft_Action_{i}_TeamID"] = str(drafter_info.get("id", "N/A")) if drafter_info.get("id") else "N/A"
+                             row_dict[f"Draft_Action_{i}_ChampName"] = str(draftable_info.get("name", "N/A")) if draftable_info.get("name") else "N/A"
+                             row_dict[f"Draft_Action_{i}_ChampID"] = str(draftable_info.get("id", "N/A")) if draftable_info.get("id") else "N/A"
+                             row_dict[f"Draft_Action_{i}_ActionID"] = str(action.get("id", "N/A")) if action.get("id") else "N/A"
+
                 data_tuple = tuple(row_dict.get(sql_col, "N/A") for sql_col in sql_column_names)
                 
                 # Сохраняем основную информацию об игре
@@ -400,16 +442,12 @@ def fetch_and_store_scrims():
                     added_count += 1
                     existing_game_ids.add(game_id)
                     
-                    # !!! КРИТИЧЕСКОЕ ИЗМЕНЕНИЕ: 
-                    # Сначала подтверждаем запись в таблицу scrims и закрываем транзакцию,
-                    # чтобы освободить базу для функции process_replay_to_db.
                     conn.commit() 
                     
                     log_message(f"New game {game_id} added. Fetching timeline...")
                     timeline_data = download_riot_livestats_data(series_id, sequence_number)
                     
                     if timeline_data:
-                        # Теперь process_replay_to_db сможет открыть свое соединение без ошибок
                         process_replay_to_db(game_id, timeline_data, summary_data)
                         log_message(f"Replay data stored for {game_id}")
                     else:
@@ -423,7 +461,6 @@ def fetch_and_store_scrims():
             finally: 
                 time.sleep(API_REQUEST_DELAY / 4)
 
-        # После каждой серии тоже делаем коммит
         conn.commit() 
         time.sleep(API_REQUEST_DELAY / 2)
 
@@ -620,15 +657,43 @@ def get_rune_icon_html(rune_id_input, width=22, height=22):
             continue
 
     return "".join(html_elements)
+# --- ДОБАВИТЬ ЭТИ ПЕРЕМЕННЫЕ И ФУНКЦИЮ ПЕРЕД aggregate_scrim_data ---
+blue_pick_seq_to_phase = { 7: 'B1', 10: 'B2-3', 11: 'B2-3', 18: 'B4-5', 19: 'B4-5' }
+red_pick_seq_to_phase = { 8: 'R1-2', 9: 'R1-2', 12: 'R3', 17: 'R4', 20: 'R5' }
+
+def format_priority_picks(priority_dict, champion_data):
+    """Форматирует словарь приоритетов для шаблона."""
+    # Нужно импортировать внутри, чтобы избежать циклических импортов, если они есть
+    from app import get_champion_icon_html
+    priority_list = []
+    max_picks_in_phase = 0
+    
+    for champ, phase_counts in priority_dict.items():
+        current_max = max(phase_counts.values()) if phase_counts else 0
+        if current_max > max_picks_in_phase:
+            max_picks_in_phase = current_max
+
+    for champ, phase_counts in priority_dict.items():
+        total_picks = sum(phase_counts.values())
+        entry = {
+            "champion": champ,
+            "total_picks": total_picks,
+            "icon_html": get_champion_icon_html(champ, champion_data, 35, 35),
+            "phases": {phase: count for phase, count in phase_counts.items()}
+        }
+        priority_list.append(entry)
+    
+    return sorted(priority_list, key=lambda x: x['total_picks'], reverse=True), max_picks_in_phase if max_picks_in_phase > 0 else 1
+
 def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
     """
-    Исправленная версия: удален конфликтующий импорт get_rune_icon_html.
+    Агрегация данных скримов, включая парсинг Priority Picks оппонентов.
     """
-    from database import get_db_connection # Убедись, что это импортируется корректно
+    from database import get_db_connection 
     
     log_message(f"Aggregating scrim data. Time: {time_filter}, Side: {side_filter}")
     conn = get_db_connection()
-    if not conn: return {}, [], {}, {}
+    if not conn: return {}, [], {}, {}, {}, {} 
 
     where_clause = ""
     params = []
@@ -645,7 +710,6 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
         cursor.execute(f"SELECT * FROM scrims {where_clause} ORDER BY \"Date\" DESC", params)
         all_scrim_data = cursor.fetchall()
         
-        # Импортируем только то, что точно есть в app.py
         from app import get_champion_data, get_champion_icon_html
         champion_data = get_champion_data()
         
@@ -653,16 +717,44 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
         history_list = []
         player_stats_agg = defaultdict(lambda: defaultdict(lambda: {'games': 0, 'wins': 0, 'k': 0, 'd': 0, 'a': 0, 'dmg': 0, 'cs': 0}))
         
+        # Словарь для сбора статистики оппонентов
+        # Структура: {TeamName: {"players": {PlayerName: {Champ: stats}}, "temp_priority": {'Blue': {...}, 'Red': {...}}}}
+        opponent_stats_agg = defaultdict(lambda: {
+            "players": defaultdict(lambda: defaultdict(lambda: {'games': 0, 'wins': 0, 'k': 0, 'd': 0, 'a': 0, 'dmg': 0, 'cs': 0})),
+            "temp_priority": {
+                'Blue': defaultdict(lambda: defaultdict(int)),
+                'Red': defaultdict(lambda: defaultdict(int))
+            }
+        })
+        
         role_to_abbr = {"TOP": "TOP", "JUNGLE": "JGL", "MIDDLE": "MID", "BOTTOM": "BOT", "UTILITY": "SUP"}
         roles_ordered = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]
 
         for row in all_scrim_data:
             game = dict(row)
+            duration_str = game.get("Duration", "00:00")
+            try:
+                parts = duration_str.split(':')
+                if len(parts) == 2:
+                    minutes, seconds = map(int, parts)
+                    total_seconds = minutes * 60 + seconds
+                else:
+                    total_seconds = int(parts[0])
+                if total_seconds < 900:
+                    continue
+            except (ValueError, TypeError):
+                continue
+                
             game_id = str(game.get("Game_ID") or game.get("Game ID") or "N/A")
             result = game.get("Result", "Unknown")
             
-            is_our_blue = game.get("Blue_Team_Name") == "Bushido Wildcats"
-            is_our_red = game.get("Red_Team_Name") == "Bushido Wildcats"
+            blue_team = game.get("Blue_Team_Name")
+            red_team = game.get("Red_Team_Name")
+            
+            is_our_blue = blue_team == "paiN Gaming"
+            is_our_red = red_team == "paiN Gaming"
+            
+            opponent_team_name = red_team if is_our_blue else blue_team if is_our_red else "Unknown"
             
             if is_our_blue:
                 if result == "Win": overall_stats["blue_wins"] += 1
@@ -712,10 +804,13 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
                 rp.append(get_champion_icon_html(game.get(f"Red_{r_a}_Champ"), champion_data))
 
             match_max_dmg = 1
+            match_max_gold = 1
             for role in roles_ordered:
                 r_a = role_to_abbr[role]
                 match_max_dmg = max(match_max_dmg, int(game.get(f"Blue_{r_a}_Dmg", 0) or 0), int(game.get(f"Red_{r_a}_Dmg", 0) or 0))
+                match_max_gold = max(match_max_gold, int(game.get(f"Blue_{r_a}_Gold", 0) or 0), int(game.get(f"Red_{r_a}_Gold", 0) or 0))
 
+            # Сбор данных игроков
             for role in roles_ordered:
                 r_a = role_to_abbr[role]
                 for side in ['Blue', 'Red']:
@@ -723,17 +818,21 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
                     champ = game.get(f"{p_f}_Champ", "N/A")
                     k, d, a = int(game.get(f"{p_f}_K", 0) or 0), int(game.get(f"{p_f}_D", 0) or 0), int(game.get(f"{p_f}_A", 0) or 0)
                     dmg, cs = int(game.get(f"{p_f}_Dmg", 0) or 0), int(game.get(f"{p_f}_CS", 0) or 0)
+                    gold = int(game.get(f"{p_f}_Gold", 0) or 0)
                     
-                    # Пытаемся получить иконку руны без импорта функции, если она не найдена
                     rune_id = game.get(f"{p_f}_Runes", "0")
-                    rune_html = f'<img src="https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/7200_Domination.png" width="24" height="24">' # Заглушка, если функции нет
+                    rune_html = get_rune_icon_html(rune_id)
                     
                     p_entry = {
-                        'role': role, 'name': game.get(f"{p_f}_Player", "Unknown"),
-                        'champion': champ, 'icon_html': get_champion_icon_html(champ, champion_data, 32, 32),
-                        'k': k, 'd': d, 'a': a, 'dmg': dmg, 'cs': cs,
-                        'max_dmg': match_max_dmg, 'items_list': game.get(f"{p_f}_Items", ""),
-                        'rune_html': rune_html # Здесь стоит использовать твою рабочую логику из app.py если она там есть
+                        'role': role, 
+                        'name': game.get(f"{p_f}_Player", "Unknown"),
+                        'champion': champ, 
+                        'icon_html': get_champion_icon_html(champ, champion_data, 32, 32),
+                        'k': k, 'd': d, 'a': a, 
+                        'dmg': dmg, 'gold': gold, 'cs': cs,
+                        'max_dmg': match_max_dmg, 'max_gold': match_max_gold, 
+                        'items_list': game.get(f"{p_f}_Items", ""),
+                        'rune_html': rune_html
                     }
                     
                     details[side.lower() + '_players'].append(p_entry)
@@ -743,6 +842,43 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
                         st = player_stats_agg[p_entry['name']][champ]
                         st['games'] += 1; st['wins'] += (result == "Win")
                         st['k'] += k; st['d'] += d; st['a'] += a; st['dmg'] += dmg; st['cs'] += cs
+                    else:
+                        if opponent_team_name != "Unknown" and opponent_team_name != "Opponent":
+                            opp_st = opponent_stats_agg[opponent_team_name]["players"][p_entry['name']][champ]
+                            opp_st['games'] += 1
+                            opp_win = 1 if result == "Loss" else 0
+                            opp_st['wins'] += opp_win
+                            opp_st['k'] += k; opp_st['d'] += d; opp_st['a'] += a; opp_st['dmg'] += dmg; opp_st['cs'] += cs
+
+            # НОВОЕ: Сбор Priority Picks Оппонента
+            if opponent_team_name != "Unknown" and opponent_team_name != "Opponent":
+                reconstructed_draft = {}
+                for i in range(1, 21):
+                    action_type = game.get(f"Draft_Action_{i}_Type")
+                    champ_name = game.get(f"Draft_Action_{i}_ChampName")
+                    if action_type and action_type != "N/A" and champ_name and champ_name != "N/A":
+                        reconstructed_draft[i] = {
+                            "Action_Type": str(action_type).lower(),
+                            "Champion_Name": champ_name
+                        }
+
+                if reconstructed_draft:
+                    # Если оппонент играл за синих
+                    if not is_our_blue:
+                        blue_picks_seq = {s: reconstructed_draft[s] for s in [7, 10, 11, 18, 19] if s in reconstructed_draft}
+                        for seq, pick_data in blue_picks_seq.items():
+                            champ = pick_data.get("Champion_Name")
+                            phase = blue_pick_seq_to_phase.get(seq)
+                            if champ and champ != "N/A" and phase:
+                                opponent_stats_agg[opponent_team_name]["temp_priority"]['Blue'][champ][phase] += 1
+                    # Если оппонент играл за красных
+                    else:
+                        red_picks_seq = {s: reconstructed_draft[s] for s in [8, 9, 12, 17, 20] if s in reconstructed_draft}
+                        for seq, pick_data in red_picks_seq.items():
+                            champ = pick_data.get("Champion_Name")
+                            phase = red_pick_seq_to_phase.get(seq)
+                            if champ and champ != "N/A" and phase:
+                                opponent_stats_agg[opponent_team_name]["temp_priority"]['Red'][champ][phase] += 1
 
             history_list.append({
                 "Date": game.get("Date", "N/A"), "Patch": game.get("Patch", "N/A"),
@@ -752,26 +888,81 @@ def aggregate_scrim_data(time_filter="All Time", side_filter="all"):
                 "B_Picks_HTML": " ".join(filter(None, bp)), "R_Picks_HTML": " ".join(filter(None, rp))
             })
 
-        final_player_stats = defaultdict(dict)
-        for player, champs in player_stats_agg.items():
-            for champ, s in champs.items():
-                g = s['games']
-                if g > 0:
-                    s.update({
-                        'win_rate': round((s['wins']/g)*100, 1),
-                        'kda': round((s['k']+s['a'])/max(1, s['d']), 1),
-                        'avg_dmg': s['dmg'] // g, 'avg_cs': round(s['cs']/g, 1),
-                        'icon_html': get_champion_icon_html(champ, champion_data, 30, 30)
-                    })
-                    final_player_stats[player][champ] = s
+        final_player_stats = {} 
+        
+        for display_name in PLAYER_DISPLAY_ORDER:
+            if display_name in player_stats_agg:
+                champs_stats = player_stats_agg[display_name]
+                formatted_champs = {}
+                
+                for champ, s in champs_stats.items():
+                    g = s['games']
+                    if g > 0:
+                        formatted_champs[champ] = {
+                            'games': g,
+                            'wins': s['wins'],
+                            'k': s['k'], 'd': s['d'], 'a': s['a'], 'dmg': s['dmg'], 'cs': s['cs'],
+                            'win_rate': round((s['wins'] / g) * 100, 1),
+                            'kda': round((s['k'] + s['a']) / max(1, s['d']), 1),
+                            'avg_dmg': s['dmg'] // g,
+                            'avg_cs': round(s['cs'] / g, 1),
+                            'icon_html': get_champion_icon_html(champ, champion_data, 30, 30)
+                        }
+                
+                if formatted_champs:
+                    final_player_stats[display_name] = formatted_champs
 
-        return overall_stats, history_list, dict(final_player_stats), champion_data
+        # НОВОЕ: Форматируем стату оппонентов (Игроки + Приоритеты)
+        final_opponent_stats = {}
+        opponent_teams_list = []
+        
+        for opp_team, team_data in opponent_stats_agg.items():
+            opponent_teams_list.append(opp_team)
+            final_opponent_stats[opp_team] = {
+                "players": {},
+                "priority": {}
+            }
+            
+            # Форматируем игроков
+            for player_name, champs_stats in team_data["players"].items():
+                formatted_champs = {}
+                for champ, s in champs_stats.items():
+                    g = s['games']
+                    if g > 0:
+                        formatted_champs[champ] = {
+                            'games': g, 'wins': s['wins'],
+                            'k': s['k'], 'd': s['d'], 'a': s['a'], 'dmg': s['dmg'], 'cs': s['cs'],
+                            'win_rate': round((s['wins'] / g) * 100, 1),
+                            'kda': round((s['k'] + s['a']) / max(1, s['d']), 1),
+                            'avg_dmg': s['dmg'] // g,
+                            'avg_cs': round(s['cs'] / g, 1),
+                            'icon_html': get_champion_icon_html(champ, champion_data, 30, 30)
+                        }
+                if formatted_champs:
+                    final_opponent_stats[opp_team]["players"][player_name] = formatted_champs
+            
+            # Форматируем приоритеты
+            blue_prio_list, blue_max_val = format_priority_picks(team_data["temp_priority"]["Blue"], champion_data)
+            red_prio_list, red_max_val = format_priority_picks(team_data["temp_priority"]["Red"], champion_data)
+            
+            final_opponent_stats[opp_team]["priority"] = {
+                "blue": blue_prio_list,
+                "red": red_prio_list,
+                "blue_max_picks": blue_max_val,
+                "red_max_picks": red_max_val,
+                "blue_phases": sorted(list(set(blue_pick_seq_to_phase.values())), key=lambda x: int(x.split('-')[0][1:])),
+                "red_phases": sorted(list(set(red_pick_seq_to_phase.values())), key=lambda x: int(x.split('-')[0][1:]))
+            }
+                    
+        opponent_teams_list.sort() 
+
+        return overall_stats, history_list, final_player_stats, final_opponent_stats, opponent_teams_list, champion_data
 
     except Exception as e:
         log_message(f"Aggregation Error: {e}")
         import traceback
-        log_message(traceback.format_exc()) # Поможет увидеть где именно ошибка
-        return {}, [], {}, {}
+        log_message(traceback.format_exc()) 
+        return {}, [], {}, {}, [], {}
     finally:
         if conn: conn.close()
 # --- Блок для тестирования ---

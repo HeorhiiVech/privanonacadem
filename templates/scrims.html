@@ -35,7 +35,54 @@
             border-bottom: 1px solid #444; /* Темный разделитель */
             color: #eee; /* Светлый текст заголовка */
         }
-        
+        /* Общий контейнер для полосок игрока */
+        .player-stats-bars {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            width: 120px; /* Ширина блока с полосками */
+            justify-content: center;
+        }
+
+        /* Контейнер одной полоски */
+        .stat-bar-wrapper {
+            height: 12px;
+            background: rgba(0, 0, 0, 0.3);
+            border-radius: 2px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+        }
+
+        /* Сама заливка */
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+
+        .bar-fill.dmg {
+            background: linear-gradient(90deg, #8e2de2, #ff0080); /* Градиент урона */
+            box-shadow: 0 0 5px rgba(255, 0, 128, 0.5);
+        }
+
+        .bar-fill.gold {
+            background: linear-gradient(90deg, #f2994a, #f2c94c); /* Градиент золота */
+            box-shadow: 0 0 5px rgba(242, 201, 76, 0.5);
+        }
+
+        /* Текст поверх полоски */
+        .bar-text {
+            position: absolute;
+            width: 100%;
+            text-align: center;
+            font-size: 9px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 1px 1px 2px #000;
+            pointer-events: none;
+            z-index: 1;
+        }
         /* Строка игрока */
         .player-detail-row {
             display: flex;
@@ -104,7 +151,7 @@
     <h2>Overall Statistics ({{ selected_time_filter }})</h2>
     {% if overall_stats and overall_stats.total_games > 0 %}
         <div class="overall-stats-container">
-            <div class="stat-card"> {# Total card без доп. класса #}
+            <div class="stat-card">
                 <h3>Total</h3>
                 <p class="stat-value">{{ overall_stats.total_games }}</p>
                 <p class="stat-label">Games</p>
@@ -114,7 +161,6 @@
                 </p>
                  <small>({{ overall_stats.blue_wins + overall_stats.red_wins }}W - {{ overall_stats.blue_losses + overall_stats.red_losses }}L)</small>
             </div>
-             {# Добавляем классы stat-card-blue и stat-card-red #}
             <div class="stat-card stat-card-blue">
                 <h3>Blue Side</h3>
                  {% set blue_games = overall_stats.blue_wins + overall_stats.blue_losses %}
@@ -141,6 +187,174 @@
     {% else %}
         <p class="notice">No overall statistics available for this period.</p>
     {% endif %}
+
+    <hr>
+    <div style="display: flex; justify-content: center; align-items: center; flex-wrap: wrap; margin-bottom: 20px;">
+        <button class="button" onclick="toggleOpponentSection()" id="btn-toggle-opponents" style="background-color: #2a2a2a; border: 1px solid #555;">Show Opponent Stats</button>
+    </div>
+
+    <div id="opponent-stats-section" style="display: none; background-color: #1e1e1e; padding: 20px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #444;">
+        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 15px;">
+            <h2 style="margin: 0; color: #e74c3c;">Opponent Stats & Priority Picks</h2>
+            <div class="side-filter-controls">
+                <label for="opponent-select" style="color: #ccc; margin-right: 10px;">Select Team:</label>
+                <select id="opponent-select" onchange="showOpponentTeam(this.value)" style="padding: 6px; background-color: #333; color: white; border: 1px solid #555; border-radius: 4px;">
+                    <option value="">-- Select Team --</option>
+                    {% for team in opponent_teams %}
+                        <option value="{{ team }}">{{ team }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+
+        {% if opponent_stats %}
+            <div id="opponent-grids-container">
+                {% for team_name, team_data in opponent_stats.items() %}
+                    <div class="opponent-team-grid" id="opp-grid-{{ team_name | replace(' ', '-') }}" style="display: none; flex-direction: column;">
+                        
+                        <div class="player-stats-grid" style="display: flex; flex-wrap: wrap; gap: 15px;">
+                            {% for player_name, champs in team_data.players.items() %}
+                                <div class="player-column" style="background: #2a2a2a; border: 1px solid #444; padding: 10px; border-radius: 6px; flex: 1; min-width: 300px;">
+                                    <h3 style="color: #e74c3c; text-align: center; border-bottom: 1px solid #444; padding-bottom: 5px;">{{ player_name }}</h3>
+                                    <div class="table-responsive">
+                                        <table class="player-champ-table sortable-table" id="table-opp-{{ team_name | replace(' ', '-') }}-{{ player_name | replace(' ', '-') }}">
+                                            <thead>
+                                                <tr>
+                                                    <th>Icon</th>
+                                                    <th class="sortable-header" data-sort-col="1" data-sort-type="number">G</th>
+                                                    <th class="sortable-header" data-sort-col="2" data-sort-type="number">WR%</th>
+                                                    <th class="sortable-header" data-sort-col="3" data-sort-type="number">KDA</th>
+                                                    <th class="sortable-header" data-sort-col="4" data-sort-type="number">Dmg</th>
+                                                    <th class="sortable-header" data-sort-col="5" data-sort-type="number">CS</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                            {% for champ_name, stats in champs.items() %}
+                                                <tr>
+                                                    <td>{{ stats.icon_html | safe }}</td>
+                                                    <td>{{ stats.games }}</td>
+                                                    <td data-sort-value="{{ stats.win_rate }}" class="{% if stats.win_rate >= 60 %}wr-high{% elif stats.win_rate <= 45 %}wr-low{% else %}wr-mid{% endif %}">
+                                                        {{ "%.1f"|format(stats.win_rate) }}
+                                                    </td>
+                                                    <td data-sort-value="{{ stats.kda }}">{{ "%.1f"|format(stats.kda) }}</td>
+                                                    <td data-sort-value="{{ stats.avg_dmg }}">{{ stats.avg_dmg }}</td>
+                                                    <td data-sort-value="{{ stats.avg_cs }}">{{ "%.1f"|format(stats.avg_cs) }}</td>
+                                                </tr>
+                                            {% endfor %}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+
+                        <hr style="border-color: #444; margin: 25px 0;">
+
+                        <h3 style="color: #e74c3c; margin-bottom: 15px; text-align: center;">Team Priority Picks</h3>
+                        <div class="priority-picks-container" style="display: flex; gap: 20px; flex-wrap: wrap; justify-content: center;">
+                            {% set priority_data = team_data.priority %}
+                            
+                            <div class="priority-picks-block" style="flex: 1; min-width: 400px; max-width: 600px; background: #2a2a2a; border: 1px solid #444; border-radius: 6px; padding: 15px;">
+                                <h5 style="color: #4a90e2; text-align: center; margin-top: 0;">Blue Side Priority</h5>
+                                {% if priority_data.blue %}
+                                <div class="priority-filters" style="margin-bottom: 10px; text-align: center;">
+                                    <span style="color: #ccc; font-size: 0.9em;">Filter by Pick:</span>
+                                    <button class="button priority-filter-btn active" data-target-table="blue-priority-table-{{ team_name | replace(' ', '-') }}" data-phase="all" style="padding: 4px 8px; font-size: 0.8em; margin: 2px;">All</button>
+                                    {% for phase in priority_data.blue_phases %}
+                                        <button class="button priority-filter-btn" data-target-table="blue-priority-table-{{ team_name | replace(' ', '-') }}" data-phase="{{ phase }}" style="padding: 4px 8px; font-size: 0.8em; margin: 2px;">{{ phase }}</button>
+                                    {% endfor %}
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="player-champ-table priority-picks-table" id="blue-priority-table-{{ team_name | replace(' ', '-') }}" style="width: 100%;">
+                                        <thead>
+                                            <tr>
+                                                <th>Icon</th>
+                                                <th>Champion</th>
+                                                <th>Total</th>
+                                                {% for phase in priority_data.blue_phases %}
+                                                <th class="phase-col {{ phase }}">{{ phase }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% set max_val = priority_data.blue_max_picks %}
+                                            {% for champ_prio in priority_data.blue %}
+                                            <tr data-phases='{{ champ_prio.phases | tojson | safe }}'>
+                                                <td>{{ champ_prio.icon_html | safe }}</td>
+                                                <td style="text-align: left;">{{ champ_prio.champion }}</td>
+                                                <td>{{ champ_prio.total_picks }}</td>
+                                                {% for phase in priority_data.blue_phases %}
+                                                    {% set count = champ_prio.phases.get(phase, 0) %}
+                                                    {% set opacity = (count / max_val) * 0.8 + 0.1 if max_val > 0 and count > 0 else 0 %}
+                                                    <td class="phase-col {{ phase }}" style="background-color: rgba(0, 123, 255, {{ opacity }}); color: {{ '#ffffff' if opacity > 0.55 else '#ccc' }}; text-align: center;">
+                                                        {{ count if count > 0 else '-' }}
+                                                    </td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <p class="notice" style="text-align: center;">No priority pick data available for Blue Side.</p>
+                                {% endif %}
+                            </div>
+
+                            <div class="priority-picks-block" style="flex: 1; min-width: 400px; max-width: 600px; background: #2a2a2a; border: 1px solid #444; border-radius: 6px; padding: 15px;">
+                                <h5 style="color: #e74c3c; text-align: center; margin-top: 0;">Red Side Priority</h5>
+                                {% if priority_data.red %}
+                                <div class="priority-filters" style="margin-bottom: 10px; text-align: center;">
+                                    <span style="color: #ccc; font-size: 0.9em;">Filter by Pick:</span>
+                                    <button class="button priority-filter-btn active" data-target-table="red-priority-table-{{ team_name | replace(' ', '-') }}" data-phase="all" style="padding: 4px 8px; font-size: 0.8em; margin: 2px;">All</button>
+                                    {% for phase in priority_data.red_phases %}
+                                        <button class="button priority-filter-btn" data-target-table="red-priority-table-{{ team_name | replace(' ', '-') }}" data-phase="{{ phase }}" style="padding: 4px 8px; font-size: 0.8em; margin: 2px;">{{ phase }}</button>
+                                    {% endfor %}
+                                </div>
+                                <div class="table-responsive">
+                                    <table class="player-champ-table priority-picks-table" id="red-priority-table-{{ team_name | replace(' ', '-') }}" style="width: 100%;">
+                                        <thead>
+                                            <tr>
+                                                <th>Icon</th>
+                                                <th>Champion</th>
+                                                <th>Total</th>
+                                                {% for phase in priority_data.red_phases %}
+                                                <th class="phase-col {{ phase }}">{{ phase }}</th>
+                                                {% endfor %}
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            {% set max_val = priority_data.red_max_picks %}
+                                            {% for champ_prio in priority_data.red %}
+                                            <tr data-phases='{{ champ_prio.phases | tojson | safe }}'>
+                                                <td>{{ champ_prio.icon_html | safe }}</td>
+                                                <td style="text-align: left;">{{ champ_prio.champion }}</td>
+                                                <td>{{ champ_prio.total_picks }}</td>
+                                                {% for phase in priority_data.red_phases %}
+                                                    {% set count = champ_prio.phases.get(phase, 0) %}
+                                                    {% set opacity = (count / max_val) * 0.8 + 0.1 if max_val > 0 and count > 0 else 0 %}
+                                                    <td class="phase-col {{ phase }}" style="background-color: rgba(220, 53, 69, {{ opacity }}); color: {{ '#ffffff' if opacity > 0.55 else '#ccc' }}; text-align: center;">
+                                                        {{ count if count > 0 else '-' }}
+                                                    </td>
+                                                {% endfor %}
+                                            </tr>
+                                            {% endfor %}
+                                        </tbody>
+                                    </table>
+                                </div>
+                                {% else %}
+                                <p class="notice" style="text-align: center;">No priority pick data available for Red Side.</p>
+                                {% endif %}
+                            </div>
+
+                        </div>
+                    </div>
+                {% endfor %}
+            </div>
+            <p id="opp-placeholder-text" class="notice" style="text-align: center; margin-top: 20px;">Please select an opponent team from the dropdown above to view their stats and drafts.</p>
+        {% else %}
+            <p class="notice">No opponent statistics available for this period.</p>
+        {% endif %}
+    </div>
 
     <hr>
 
@@ -283,11 +497,13 @@
                                                     {% endif %}
                                                 </div>
                                                 <div class="runes-container asset-box" style="display: none;">{{ p.rune_html | safe }}</div>
-                                                <div class="stats-container asset-box" style="display: none; width: 100%; max-width: 100px;">
-                                                    <div style="height: 4px; background: #111; border-radius: 2px; overflow: hidden;">
-                                                        <div style="width: {{ (p.dmg / (p.max_dmg if p.max_dmg > 0 else 1) * 100)|round }}%; height: 100%; background: #4a90e2;"></div>
+                                                <div class="stats-container asset-box" style="display: none; flex-direction: column; gap: 3px; width: 100px; justify-content: center;">
+                                                    <div style="height: 6px; background: rgba(0,0,0,0.5); border-radius: 1px; overflow: hidden; position: relative;" title="Damage: {{ p.dmg }}">
+                                                        <div style="width: {{ (p.dmg / (p.max_dmg if p.max_dmg > 0 else 1) * 100)|int }}%; height: 100%; background: linear-gradient(90deg, #8e2de2, #ff0080);"></div>
                                                     </div>
-                                                    <div style="font-size: 0.7em; color: #888; text-align: center;">{{ p.dmg }} dmg</div>
+                                                    <div style="height: 6px; background: rgba(0,0,0,0.5); border-radius: 1px; overflow: hidden; position: relative;" title="Gold: {{ p.gold }}">
+                                                        <div style="width: {{ (p.gold / (p.max_gold if p.max_gold > 0 else 1) * 100)|int }}%; height: 100%; background: linear-gradient(90deg, #f2994a, #f2c94c);"></div>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div style="width: 70px; text-align: right; font-family: monospace; font-size: 0.85em;">{{ p.k }}/{{ p.d }}/{{ p.a }}</div>
@@ -359,11 +575,13 @@
                                                     {% endif %}
                                                 </div>
                                                 <div class="runes-container asset-box" style="display: none;">{{ p.rune_html | safe }}</div>
-                                                <div class="stats-container asset-box" style="display: none; width: 100%; max-width: 100px;">
-                                                    <div style="height: 4px; background: #111; border-radius: 2px; overflow: hidden;">
-                                                        <div style="width: {{ (p.dmg / (p.max_dmg if p.max_dmg > 0 else 1) * 100)|round }}%; height: 100%; background: #e24a4a;"></div>
+                                                <div class="stats-container asset-box" style="display: none; flex-direction: column; gap: 3px; width: 100px; justify-content: center;">
+                                                    <div style="height: 6px; background: rgba(0,0,0,0.5); border-radius: 1px; overflow: hidden; position: relative;" title="Damage: {{ p.dmg }}">
+                                                        <div style="width: {{ (p.dmg / (p.max_dmg if p.max_dmg > 0 else 1) * 100)|int }}%; height: 100%; background: linear-gradient(90deg, #8e2de2, #ff0080);"></div>
                                                     </div>
-                                                    <div style="font-size: 0.7em; color: #888; text-align: center;">{{ p.dmg }} dmg</div>
+                                                    <div style="height: 6px; background: rgba(0,0,0,0.5); border-radius: 1px; overflow: hidden; position: relative;" title="Gold: {{ p.gold }}">
+                                                        <div style="width: {{ (p.gold / (p.max_gold if p.max_gold > 0 else 1) * 100)|int }}%; height: 100%; background: linear-gradient(90deg, #f2994a, #f2c94c);"></div>
+                                                    </div>
                                                 </div>
                                             </div>
                                             <div style="width: 70px; text-align: right; font-family: monospace; font-size: 0.85em;">{{ p.k }}/{{ p.d }}/{{ p.a }}</div>
@@ -557,6 +775,48 @@
             
             animationId = requestAnimationFrame((t) => animate(t, gameId));
         }
+        // --- НОВЫЕ ФУНКЦИИ ДЛЯ СТАТИСТИКИ ОППОНЕНТОВ ---
+        function toggleOpponentSection() {
+            const section = document.getElementById('opponent-stats-section');
+            const btn = document.getElementById('btn-toggle-opponents');
+            
+            if (section.style.display === 'none') {
+                section.style.display = 'block';
+                btn.textContent = 'Hide Opponent Stats';
+                btn.style.backgroundColor = '#e74c3c';
+                btn.style.color = '#fff';
+            } else {
+                section.style.display = 'none';
+                btn.textContent = 'Show Opponent Stats';
+                btn.style.backgroundColor = '#2a2a2a';
+                btn.style.color = '#ccc';
+            }
+        }
+
+        function showOpponentTeam(teamName) {
+            // Сначала скрываем все сетки команд
+            document.querySelectorAll('.opponent-team-grid').forEach(grid => {
+                grid.style.display = 'none';
+            });
+            
+            const placeholder = document.getElementById('opp-placeholder-text');
+            
+            if (teamName) {
+                if (placeholder) placeholder.style.display = 'none';
+                
+                // Находим нужную сетку (пробелы заменяются на дефисы для ID)
+                const safeName = teamName.replace(/ /g, '-');
+                const selectedGrid = document.getElementById('opp-grid-' + safeName);
+                
+                if (selectedGrid) {
+                    selectedGrid.style.display = 'flex'; 
+                }
+            } else {
+                if (placeholder) placeholder.style.display = 'block';
+            }
+        }
+
+
 
         function togglePlay(element) {
             const gameId = element.id.replace('play-btn-', '');
@@ -678,6 +938,37 @@
             btn.style.background = btn.style.borderColor;
             btn.style.color = 'white';
         }
+
+// Логика переключения фаз Priority Picks
+        document.querySelectorAll('.priority-filter-btn').forEach(button => {
+            button.addEventListener('click', function() {
+                const targetTableId = this.dataset.targetTable;
+                const phase = this.dataset.phase;
+                const table = document.getElementById(targetTableId);
+
+                // Подсветка активной кнопки
+                this.parentElement.querySelectorAll('.priority-filter-btn').forEach(btn => btn.classList.remove('active'));
+                this.classList.add('active');
+
+                // Показ/скрытие строк
+                table.querySelectorAll('tbody tr').forEach(row => {
+                    if (phase === 'all') {
+                        row.style.display = '';
+                    } else {
+                        const phasesData = JSON.parse(row.dataset.phases || '{}');
+                        if (phasesData[phase] && phasesData[phase] > 0) {
+                            row.style.display = '';
+                        } else {
+                            row.style.display = 'none';
+                        }
+                    }
+                });
+            });
+        });
+
+
+
+
 
         document.addEventListener('DOMContentLoaded', () => {
             const sortableTables = document.querySelectorAll('.sortable-table');

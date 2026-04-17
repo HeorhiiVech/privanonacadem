@@ -10,7 +10,7 @@ _basedir = os.path.abspath(os.path.dirname(__file__))
 DATABASE_PATH = os.path.join(_basedir, 'scrims_data.db')
 
 # --- Заголовки таблиц ---
-SCRIMS_HEADER = [
+SCRIMS_HEADER_BASE = [
     "Date", "Patch", "Blue Team Name", "Red Team Name", "Duration", "Result",
     "Blue Ban 1 ID", "Blue Ban 2 ID", "Blue Ban 3 ID", "Blue Ban 4 ID", "Blue Ban 5 ID",
     "Red Ban 1 ID", "Red Ban 2 ID", "Red Ban 3 ID", "Red Ban 4 ID", "Red Ban 5 ID",
@@ -49,15 +49,25 @@ TOURNAMENT_GAMES_HEADER_BASE = [
     "Red_TOP_PartID", "Red_JGL_PartID", "Red_MID_PartID", "Red_BOT_PartID", "Red_SUP_PartID",
     "Game ID", "Series ID", "Sequence Number"
 ]
+
 draft_action_columns = []
 for i in range(1, 21):
-    draft_action_columns.extend([ f"Draft_Action_{i}_Type", f"Draft_Action_{i}_TeamID", f"Draft_Action_{i}_ChampName", f"Draft_Action_{i}_ChampID", f"Draft_Action_{i}_ActionID" ])
+    draft_action_columns.extend([ 
+        f"Draft_Action_{i}_Type", 
+        f"Draft_Action_{i}_TeamID", 
+        f"Draft_Action_{i}_ChampName", 
+        f"Draft_Action_{i}_ChampID", 
+        f"Draft_Action_{i}_ActionID" 
+    ])
+
+SCRIMS_HEADER = SCRIMS_HEADER_BASE + draft_action_columns
 TOURNAMENT_GAMES_HEADER = TOURNAMENT_GAMES_HEADER_BASE + draft_action_columns
 
 SOLOQ_GAMES_HEADER = [
     "Match_ID", "Player_Name", "Riot_Name", "Riot_Tag", "Timestamp", "Date_Readable",
     "Win", "Champion", "Role", "Kills", "Deaths", "Assists"
 ]
+
 
 manual_draft_action_headers = [f"action_{i}_champion" for i in range(1, 21)]
 MANUAL_DRAFTS_HEADER = [
@@ -277,7 +287,6 @@ def init_db():
         except sqlite3.Error as e:
             print(f"Ошибка при создании таблицы/индексов 'player_positions_timeline': {e}")
             
-# <<< ОБНОВЛЕННАЯ ТАБЛИЦА ДЛЯ МИНИ-ПЛЕЕРА (СОБЫТИЯ И ОБЪЕКТЫ) >>>
         print("Проверка/создание таблицы objective_events...")
         create_objectives_sql = """
         CREATE TABLE IF NOT EXISTS objective_events (
@@ -295,7 +304,6 @@ def init_db():
             lane TEXT                         -- 'TOP_LANE' и т.д.
         );
         """
-        # Индексы для моментальной загрузки таймлайна в Scrims
         create_objectives_game_id_index = "CREATE INDEX IF NOT EXISTS idx_objectives_game_id ON objective_events (game_id);"
         create_objectives_type_index = "CREATE INDEX IF NOT EXISTS idx_objectives_event_type ON objective_events (event_type);"
         
@@ -306,6 +314,23 @@ def init_db():
             print("Таблица 'objective_events' обновлена для поддержки мини-плеера.")
         except sqlite3.Error as e:
             print(f"Ошибка при создании objective_events: {e}")
+
+        # <<< НОВАЯ ТАБЛИЦА ДЛЯ FEARLESS DRAFTING >>>
+        print("Проверка/создание таблицы fearless_drafts...")
+        create_fearless_sql = """
+        CREATE TABLE IF NOT EXISTS fearless_drafts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            series_name TEXT NOT NULL,
+            roster TEXT NOT NULL,
+            draft_data TEXT NOT NULL,
+            last_updated TEXT NOT NULL
+        );
+        """
+        try:
+            cursor.execute(create_fearless_sql)
+            print("Таблица 'fearless_drafts' успешно проверена/создана.")
+        except sqlite3.Error as e:
+            print(f"Ошибка при создании таблицы 'fearless_drafts': {e}")
 
         conn.commit()
     except sqlite3.Error as e:

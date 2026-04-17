@@ -1,0 +1,44 @@
+Ищем последние 4 турнира для команды 'Vivo Keyd Stars' (ID: 48173)...
+Найдено 128 матчей для команды Vivo Keyd Stars. Анализируем турниры...
+
+Последние 4 турнира для 'Vivo Keyd Stars':
+  1. Название: CBLOL - Split 1 2026 (Regular Season: Regular Season), ID (код): 829016
+  2. Название: CBLOL - COPA CBLOL (Playoffs: Playoffs), ID (код): 827738
+  3. Название: CBLOL - COPA CBLOL (Play-Ins: Play-Ins), ID (код): 827736
+  4. Название: CBLOL - COPA CBLOL (Regular Season: Regular Season), ID (код): 827734
+
+Ищем последние 4 турнира для команды 'FlyQuest' (ID: 340)...
+Найдено 264 матчей для команды FlyQuest. Анализируем турниры...
+
+Последние 4 турнира для 'FlyQuest':
+  1. Название: LCS - Split 2 2026 (Regular Season: Regular Season), ID (код): 828912
+  2. Название: LCS - Split 1 2026 (Playoffs: Playoffs), ID (код): 827912
+  3. Название: LCS - Split 1 2026 (Swiss: Swiss), ID (код): 827910
+  4. Название: Worlds - 2025 (Swiss: Swiss), ID (код): 827201
+
+Ищем последние 4 турнира для команды 'T1' (ID: 47494)...
+Найдено 213 матчей для команды T1. Анализируем турниры...
+
+Последние 4 турнира для 'T1':
+  1. Название: LCK - Split 2 2026 (Regular Season: Regular Season), ID (код): 829039
+  2. Название: LCK - LCK Cup 2026 (Playoffs: Playoffs), ID (код): 827848
+  3. Название: LCK - LCK Cup 2026 (Group Stage: Alpha Group), ID (код): 827844
+  4. Название: KeSPA Cup 2025, ID (код): 827613
+
+Ищем последние 4 турнира для команды 'G2 Esports' (ID: 47380)...
+Найдено 183 матчей для команды G2 Esports. Анализируем турниры...
+
+Последние 4 турнира для 'G2 Esports':
+  1. Название: LEC - Spring 2026 (Regular Season: Regular Season), ID (код): 828973
+  2. Название: First Stand - 2026 (Playoffs: Playoffs), ID (код): 828874
+  3. Название: First Stand - 2026 (Group Stage: Group A), ID (код): 828871
+  4. Название: LEC - LEC Versus 2026 (Playoffs: Playoffs), ID (код): 828729
+
+Ищем последние 4 турнира для команды 'paiN Gaming Academy' (ID: 52835)...
+Найдено 90 матчей для команды paiN Gaming Academy. Анализируем турниры...
+
+Последние 4 турнира для 'paiN Gaming Academy':
+  1. Название: Circuito Desafiante - Split 1 2026 (Regular Season: Regular Season), ID (код): 829083
+  2. Название: Americas Challengers - 2024 (Playoffs: Playoffs), ID (код): 775182
+  3. Название: Americas Challengers - 2024 (Groups: Groups), ID (код): 775180
+  4. Название: CBLOL Academy - Split 2 2024 (Playoffs: Playoffs), ID (код): 775037
