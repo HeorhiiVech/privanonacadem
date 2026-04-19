@@ -561,7 +561,7 @@
 
 
             <h4>Match Drafts</h4>
-            <div class="duo-picks-grid">
+            <div class="drafts-section">
                 {% if matches %}
                     {% for series_id, games_in_series in matches.items() %}
                         {% if games_in_series %}
@@ -588,9 +588,9 @@
                                                 <table class="draft-table-compact">
                                                     <thead>
                                                         <tr>
-                                                            <th>{{ team_tag_map.get(game.blue_team_tag, game.blue_team_tag) if team_tag_map else game.blue_team_tag }}</th>
+                                                            <th>{{ team_tag_map.get(game.draft_left_team_tag, game.draft_left_team_tag) if team_tag_map else game.draft_left_team_tag }}</th>
                                                             <th>Phase</th>
-                                                            <th>{{ team_tag_map.get(game.red_team_tag, game.red_team_tag) if team_tag_map else game.red_team_tag }}</th>
+                                                            <th>{{ team_tag_map.get(game.draft_right_team_tag, game.draft_right_team_tag) if team_tag_map else game.draft_right_team_tag }}</th>
                                                         </tr>
                                                     </thead>
                                                     <tbody>

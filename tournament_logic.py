@@ -1638,17 +1638,17 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
     role_to_abbr = {"TOP": "TOP", "JUNGLE": "JGL", "MIDDLE": "MID", "BOTTOM": "BOT", "UTILITY": "SUP"}
     role_map_display = {"TOP": "Top", "JUNGLE": "Jungle", "MIDDLE": "Mid", "BOTTOM": "ADC", "UTILITY": "Support"}
     roles_for_pattern = ["TOP", "JUNGLE", "MIDDLE", "BOTTOM", "UTILITY"]
-    valid_side_filters = ["blue", "red"];
+    valid_side_filters = ["blue", "red"]
     filter_side_norm = side_filter.lower() if side_filter.lower() in valid_side_filters else 'all'
 
     def format_bans_agg(ban_dict_input, champ_data, icon_size_px):
         formatted = []
         if not champ_data or 'id_map' not in champ_data: return formatted
         for ban_id, count in sorted(ban_dict_input.items(), key=lambda item: item[1], reverse=True):
-             ban_id_str = str(ban_id);
-             champ_name = champ_data.get('id_map',{}).get(ban_id_str, f"ID:{ban_id_str}");
-             icon_html = get_champion_icon_html(ban_id_str, champ_data, width=icon_size_px, height=icon_size_px);
-             formatted.append({'champion': champ_name, 'count': count, 'icon_html': icon_html});
+             ban_id_str = str(ban_id)
+             champ_name = champ_data.get('id_map',{}).get(ban_id_str, f"ID:{ban_id_str}")
+             icon_html = get_champion_icon_html(ban_id_str, champ_data, width=icon_size_px, height=icon_size_px)
+             formatted.append({'champion': champ_name, 'count': count, 'icon_html': icon_html})
         return formatted
 
     cursor = None
@@ -1671,7 +1671,7 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
              sql_query_games = "SELECT * FROM tournament_games WHERE Blue_Team_Name = ? OR Red_Team_Name = ? ORDER BY \"Date\" DESC, \"Series_ID\" ASC, \"Sequence_Number\" ASC"
              params_games = (selected_team_tag, selected_team_tag)
         cursor.execute(sql_query_games, params_games)
-        games_rows = cursor.fetchall();
+        games_rows = cursor.fetchall()
 
         if not games_rows:
             stats["message"] = "No games found."; conn.close(); return all_teams_display, stats, grouped_matches, all_game_details_list
@@ -1681,7 +1681,6 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
              stats["error"] = "Failed to load champion data for icons."
         
         if is_overall_view:
-            # Логика для общего обзора турнира (без изменений)
             stats.update({
                 "overall_total_games": 0, "overall_blue_wins": 0, "overall_red_wins": 0,
                 "overall_champ_stats": defaultdict(lambda: {'picks': 0, 'bans': 0, 'wins_when_picked': 0}),
@@ -1694,7 +1693,8 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
             })
             valid_games_count_overall = 0
             for game_row in games_rows:
-                 game = dict(game_row); winner_side = game.get("Winner_Side");
+                 game = dict(game_row)
+                 winner_side = game.get("Winner_Side")
                  if winner_side not in ["Blue", "Red"]: continue
                  valid_games_count_overall +=1
                  if winner_side == "Blue": stats["overall_blue_wins"] += 1
@@ -1723,7 +1723,8 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                      is_win_for_side = (side == winner_side)
                      side_picks = game_picks_by_role[side]
                      for (r1_cfg, r2_cfg), duo_title in duo_roles_config.items():
-                         champ1 = side_picks.get(r1_cfg); champ2 = side_picks.get(r2_cfg)
+                         champ1 = side_picks.get(r1_cfg)
+                         champ2 = side_picks.get(r2_cfg)
                          if champ1 and champ2:
                              duo_key = tuple(sorted([(r1_cfg, champ1), (r2_cfg, champ2)]))
                              stats["temp_overall_duo_stats"][duo_key]['games'] +=1
@@ -1732,7 +1733,7 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
 
             stats["overall_total_games"] = valid_games_count_overall
             stats["overall_red_wins"] = valid_games_count_overall - stats["overall_blue_wins"]
-            stats["overall_bans_formatted"] = format_bans_agg(stats["overall_bans_ids"], champion_data, ICON_SIZE_PICKS_BANS);
+            stats["overall_bans_formatted"] = format_bans_agg(stats["overall_bans_ids"], champion_data, ICON_SIZE_PICKS_BANS)
 
             temp_champ_list = []
             for champ, data in stats["overall_champ_stats"].items():
@@ -1823,7 +1824,8 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
             red_pick_seq_to_phase = { 8: 'R1-2', 9: 'R1-2', 12: 'R3', 17: 'R4', 20: 'R5' }
 
             for game_row in games_rows:
-                game = dict(game_row); game_db_id = game.get("Game_ID")
+                game = dict(game_row)
+                game_db_id = game.get("Game_ID")
                 if not game_db_id: continue
                 game_ids_for_team_view.append(game_db_id)
 
@@ -1882,7 +1884,8 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                             stats["picks"][role][champ]['games'] +=1
                             if is_win: stats["picks"][role][champ]['wins'] +=1
                     for (r1_cfg, r2_cfg), duo_title in duo_roles_config.items():
-                        c1 = picks_in_game_team.get(r1_cfg); c2 = picks_in_game_team.get(r2_cfg)
+                        c1 = picks_in_game_team.get(r1_cfg)
+                        c2 = picks_in_game_team.get(r2_cfg)
                         if c1 and c2:
                             duo_key = tuple(sorted([(r1_cfg, c1), (r2_cfg, c2)]))
                             temp_duo_stats_team[duo_key]['games'] +=1
@@ -1904,15 +1907,48 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                         if not draft_blue_id and i in [1,3,5,7,10,11,14,16,18,19]: draft_blue_id = str(team_id_draft)
                         if not draft_red_id and i in [2,4,6,8,9,12,13,15,17,20] and str(team_id_draft) != draft_blue_id: draft_red_id = str(team_id_draft)
 
+                is_draft_swapped = False
                 if action_found_in_game:
                     blue_picks_seq = {s: reconstructed_draft[s] for s in [7, 10, 11, 18, 19] if s in reconstructed_draft}
                     red_picks_seq = {s: reconstructed_draft[s] for s in [8, 9, 12, 17, 20] if s in reconstructed_draft}
                     
-                    our_team_picks_seq = blue_picks_seq if is_blue else red_picks_seq
+                    roles_played_game = {'Blue': {}, 'Red': {}}
+                    for r in ROLE_ORDER_FOR_SHEET:
+                        r_abbr = role_to_abbr.get(r)
+                        if not r_abbr: continue
+                        b_c = game.get(f"Blue_{r_abbr}_Champ")
+                        r_c = game.get(f"Red_{r_abbr}_Champ")
+                        if b_c and b_c != "N/A": roles_played_game['Blue'][r] = b_c
+                        if r_c and r_c != "N/A": roles_played_game['Red'][r] = r_c
+
+                    first_pick_champs = [data['Champion_Name'] for seq, data in blue_picks_seq.items() if data.get('Champion_Name') and data['Champion_Name'] != "N/A"]
+                    blue_map_champs = set(roles_played_game['Blue'].values())
+                    match_count = sum(1 for c in first_pick_champs if c in blue_map_champs)
                     
-                    if should_process_this_game_picks:
-                        rot1_keys = [7, 10, 11] if is_blue else [8, 9, 12]
-                        rot2_keys = [18, 19] if is_blue else [17, 20]
+                    if match_count < 3 and len(first_pick_champs) > 0:
+                        is_draft_swapped = True
+
+                    our_team_picks_seq = None
+                    our_team_draft_side = None
+
+                    if is_blue:
+                        if is_draft_swapped:
+                            our_team_picks_seq = red_picks_seq
+                            our_team_draft_side = 'Red'
+                        else:
+                            our_team_picks_seq = blue_picks_seq
+                            our_team_draft_side = 'Blue'
+                    elif is_red:
+                        if is_draft_swapped:
+                            our_team_picks_seq = blue_picks_seq
+                            our_team_draft_side = 'Blue'
+                        else:
+                            our_team_picks_seq = red_picks_seq
+                            our_team_draft_side = 'Red'
+                    
+                    if should_process_this_game_picks and our_team_picks_seq:
+                        rot1_keys = [7, 10, 11] if our_team_draft_side == 'Blue' else [8, 9, 12]
+                        rot2_keys = [18, 19] if our_team_draft_side == 'Blue' else [17, 20]
                         target_pick_dict_rot1 = temp_detailed_picks['blue_rot1'] if is_blue else temp_detailed_picks['red_rot1']
                         target_pick_dict_rot2 = temp_detailed_picks['blue_rot2'] if is_blue else temp_detailed_picks['red_rot2']
                         
@@ -1926,55 +1962,40 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                                     target_pick_dict_rot2[champ_name]['games'] += 1
                                     if is_win: target_pick_dict_rot2[champ_name]['wins'] += 1
 
-                    if is_blue:
-                        for seq, pick_data in blue_picks_seq.items():
+                    if our_team_draft_side == 'Blue':
+                        for seq, pick_data in our_team_picks_seq.items():
                             champ = pick_data.get("Champion_Name")
                             phase = blue_pick_seq_to_phase.get(seq)
                             if champ and champ != "N/A" and phase:
                                 temp_priority_picks['Blue'][champ][phase] += 1
-                    elif is_red:
-                        for seq, pick_data in red_picks_seq.items():
+                    elif our_team_draft_side == 'Red':
+                        for seq, pick_data in our_team_picks_seq.items():
                             champ = pick_data.get("Champion_Name")
                             phase = red_pick_seq_to_phase.get(seq)
                             if champ and champ != "N/A" and phase:
                                 temp_priority_picks['Red'][champ][phase] += 1
 
+                    if our_team_draft_side:
+                        for seq, pick_data in our_team_picks_seq.items():
+                            picked_champ_name = pick_data['Champion_Name']
+                            actual_role_for_pick = None
+                            physical_side = 'Blue' if is_blue else 'Red'
+                            for role_key, champ_in_role in roles_played_game.get(physical_side, {}).items():
+                                if champ_in_role == picked_champ_name: actual_role_for_pick = role_key; break
 
-                    roles_played_game = {'Blue': {}, 'Red': {}}
-                    for r in ROLE_ORDER_FOR_SHEET:
-                        r_abbr = role_to_abbr.get(r)
-                        if not r_abbr: continue
-                        b_c = game.get(f"Blue_{r_abbr}_Champ"); r_c = game.get(f"Red_{r_abbr}_Champ")
-                        if b_c and b_c != "N/A": roles_played_game['Blue'][r] = b_c
-                        if r_c and r_c != "N/A": roles_played_game['Red'][r] = r_c
-
-                    our_team_draft_side = None
-                    our_team_draft_actual_id = None
-
-                    if is_blue and draft_blue_id: our_team_draft_side = 'Blue'; our_team_draft_actual_id = draft_blue_id
-                    elif is_red and draft_red_id: our_team_draft_side = 'Red'; our_team_draft_actual_id = draft_red_id
-
-                    if our_team_draft_side and our_team_draft_actual_id:
-                        for seq, action_data in reconstructed_draft.items():
-                            if action_data['Action_Type'] == 'pick' and action_data['Drafter_Team_ID'] == our_team_draft_actual_id:
-                                picked_champ_name = action_data['Champion_Name']
-                                actual_role_for_pick = None
-                                for role_key, champ_in_role in roles_played_game.get(our_team_draft_side, {}).items():
-                                    if champ_in_role == picked_champ_name: actual_role_for_pick = role_key; break
-
-                                if actual_role_for_pick:
-                                    pattern_slot_key = None
-                                    if our_team_draft_side == 'Blue':
-                                        if seq == 7: pattern_slot_key = 'B1'
-                                        elif seq in [10,11]: pattern_slot_key = 'B2_B3'
-                                        elif seq in [18,19]: pattern_slot_key = 'B4_B5'
-                                    elif our_team_draft_side == 'Red':
-                                        if seq in [8,9]: pattern_slot_key = 'R1_R2'
-                                        elif seq == 12: pattern_slot_key = 'R3'
-                                        elif seq == 17: pattern_slot_key = 'R4'
-                                        elif seq == 20: pattern_slot_key = 'R5'
-                                    if pattern_slot_key:
-                                        draft_patterns_counters[our_team_draft_side][pattern_slot_key][actual_role_for_pick] +=1
+                            if actual_role_for_pick:
+                                pattern_slot_key = None
+                                if our_team_draft_side == 'Blue':
+                                    if seq == 7: pattern_slot_key = 'B1'
+                                    elif seq in [10,11]: pattern_slot_key = 'B2_B3'
+                                    elif seq in [18,19]: pattern_slot_key = 'B4_B5'
+                                elif our_team_draft_side == 'Red':
+                                    if seq in [8,9]: pattern_slot_key = 'R1_R2'
+                                    elif seq == 12: pattern_slot_key = 'R3'
+                                    elif seq == 17: pattern_slot_key = 'R4'
+                                    elif seq == 20: pattern_slot_key = 'R5'
+                                if pattern_slot_key:
+                                    draft_patterns_counters[our_team_draft_side][pattern_slot_key][actual_role_for_pick] +=1
 
                 opponent_tag_game = red_team_tag if is_blue else blue_team_tag
                 current_team_role_puuids = {}
@@ -1987,6 +2008,9 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                     "series_id": game.get("Series_ID", "N/A"), "game_id": game_db_id,
                     "sequence_number": game.get("Sequence_Number", 0),
                     "blue_team_tag": blue_team_tag, "red_team_tag": red_team_tag,
+                    "draft_left_team_tag": red_team_tag if is_draft_swapped else blue_team_tag,
+                    "draft_right_team_tag": blue_team_tag if is_draft_swapped else red_team_tag,
+                    "is_draft_swapped": is_draft_swapped,
                     "winner_side": winner_side, "is_win_for_selected": is_win,
                     "draft_actions_dict": reconstructed_draft if action_found_in_game else {},
                     "blue_team_draft_id": draft_blue_id, "red_team_draft_id": draft_red_id,
@@ -2071,8 +2095,6 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                         ward for ward in first_wards_db_for_team_games[gid]
                         if ward['player_puuid'] in current_game_selected_team_puuids
                     ]
-                    if detail_entry['first_wards']:
-                         log_message(f"[Aggregate] G:{gid} Found {len(detail_entry['first_wards'])} wards for selected team.")
 
                 if 'jungler_puuid_for_path_lookup' in detail_entry:
                     del detail_entry['jungler_puuid_for_path_lookup']
@@ -2157,7 +2179,8 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
                 if data['games'] > 0:
                     (role1_s, champ1_s), (role2_s, champ2_s) = duo_key
                     orig_r1, orig_r2 = data['roles']
-                    current_duo_title = None; target_r1_map, target_r2_map = None,None
+                    current_duo_title = None
+                    target_r1_map, target_r2_map = None, None
                     for (map_r1, map_r2), title_map in duo_roles_config.items():
                         if orig_r1 in (map_r1, map_r2) and orig_r2 in (map_r1, map_r2):
                             current_duo_title = title_map; target_r1_map,target_r2_map = map_r1,map_r2; break
@@ -2213,7 +2236,7 @@ def aggregate_tournament_data(selected_team_full_name=None, side_filter="all"):
             try: cursor.close()
             except Exception as ce: log_message(f"Error closing cursor: {ce}")
         if conn is not None:
-            try: conn.close();
+            try: conn.close()
             except Exception as ce: log_message(f"Error closing connection: {ce}")
 
     return all_teams_display, stats, grouped_matches, all_game_details_list
