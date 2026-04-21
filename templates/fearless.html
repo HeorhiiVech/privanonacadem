@@ -1,0 +1,249 @@
+{% extends "base.html" %}
+
+{% block title %}Fearless Drafting - paiN Gaming{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-2" style="font-family: 'Inter', sans-serif; max-width: 100vw;">
+    
+    <div class="d-flex justify-content-between align-items-center mb-2 px-2">
+        <div class="d-flex align-items-center gap-3">
+            <h5 class="text-white m-0 fw-bold" style="letter-spacing: 1px;">FEARLESS PANEL</h5>
+            <input type="text" id="seriesName" class="form-control form-control-sm bg-dark text-white border-secondary" placeholder="Series Name..." style="width: 180px; font-size: 11px;">
+        </div>
+        
+        <div class="d-flex gap-2">
+            <div class="btn-group btn-group-sm">
+                <input type="radio" class="btn-check" name="roster" id="main_roster" value="Main" checked>
+                <label class="btn btn-outline-primary py-0" for="main_roster">Main</label>
+                <input type="radio" class="btn-check" name="roster" id="academy_roster" value="Academy">
+                <label class="btn btn-outline-primary py-0" for="academy_roster">Academy</label>
+            </div>
+            <button class="btn btn-sm btn-success py-0 px-3" onclick="addSeries()">+ Add Series</button>
+            <button class="btn btn-sm btn-primary py-0 px-3" onclick="saveSeries()">Save</button>
+        </div>
+    </div>
+
+    <div class="locked-header-row mb-3">
+        {% for role in ['TOP', 'JGL', 'MID', 'ADC', 'SUP'] %}
+        <div class="locked-role-box">
+            <div class="role-title">{{ role }}</div>
+            <div id="locked-{{ role }}" class="locked-icons-horizontal">
+                </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="drafts-grid" id="drafts-container">
+        </div>
+</div>
+
+<style>
+    /* Горизонтальная панель заблокированных */
+    .locked-header-row {
+        display: flex;
+        gap: 10px;
+        background: #1a1a1a;
+        padding: 8px;
+        border-radius: 6px;
+        border: 1px solid #333;
+        overflow-x: auto;
+    }
+    .locked-role-box {
+        flex: 1;
+        min-width: 150px;
+        border-right: 1px solid #333;
+        padding-right: 10px;
+    }
+    .locked-role-box:last-child { border-right: none; }
+    .role-title {
+        font-size: 9px;
+        color: #666;
+        font-weight: 800;
+        text-transform: uppercase;
+        margin-bottom: 5px;
+        text-align: center;
+    }
+    .locked-icons-horizontal {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 4px;
+        justify-content: center;
+        min-height: 32px;
+    }
+    .locked-img {
+        width: 30px;
+        height: 30px;
+        border: 1px solid #444;
+        border-radius: 4px;
+        transition: transform 0.1s;
+    }
+
+    /* Сетка 5 драфтов */
+    .drafts-grid {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 8px;
+    }
+    .draft-card {
+        background: #111;
+        border: 1px solid #2a2a2a;
+        border-radius: 4px;
+    }
+    .game-num-header {
+        background: #222;
+        font-size: 10px;
+        padding: 3px;
+        text-align: center;
+        color: #eee;
+        font-weight: bold;
+    }
+    .team-inputs {
+        display: flex;
+        border-bottom: 1px solid #222;
+    }
+    .team-inputs input {
+        width: 50%;
+        background: transparent;
+        border: none;
+        color: #fff;
+        font-size: 9px;
+        padding: 4px;
+        text-align: center;
+    }
+    .t-blue { color: #52a1ff !important; font-weight: bold; }
+    .t-red { color: #ff5252 !important; font-weight: bold; }
+
+    /* Пики и баны */
+    .phase-sep {
+        font-size: 8px;
+        color: #444;
+        text-align: center;
+        padding: 2px 0;
+        background: #000;
+        text-transform: uppercase;
+    }
+    .ban-row {
+        display: flex;
+        justify-content: center;
+        gap: 4px;
+        padding: 4px;
+        background: #141414;
+    }
+    .pick-row {
+        display: flex;
+        align-items: center;
+        padding: 2px 6px;
+        border-bottom: 1px solid #1a1a1a;
+    }
+    .p-blue { border-left: 3px solid #0056b3; }
+    .p-red { flex-direction: row-reverse; border-right: 3px solid #a31515; }
+    .slot-id { font-size: 8px; color: #555; width: 14px; text-align: center; margin: 0 4px; }
+
+    /* Укороченная полоска выбора */
+    .champ-select-mini {
+        background: #000;
+        color: #ccc;
+        border: 1px solid #333;
+        font-size: 10px;
+        height: 20px;
+        padding: 0 2px;
+        width: 110px; /* Фиксированная короткая ширина */
+        border-radius: 2px;
+    }
+    .champ-select-mini:focus {
+        border-color: #666;
+        outline: none;
+    }
+    .ban-input { width: 45px; } /* Баны еще короче */
+</style>
+
+<script>
+    const championsByRole = {{ champions_by_role | tojson }};
+    const allChamps = Object.values(championsByRole).flat().sort();
+
+    function addSeries() {
+        const container = document.getElementById('drafts-container');
+        container.innerHTML = '';
+        for (let i = 1; i <= 5; i++) {
+            container.insertAdjacentHTML('beforeend', createDraft(i));
+        }
+    }
+
+    function createDraft(n) {
+        return `
+        <div class="draft-card">
+            <div class="game-num-header">GAME ${n}</div>
+            <div class="team-inputs">
+                <input type="text" class="t-blue" value="PAIN">
+                <input type="text" class="t-red" value="OPPONENT">
+            </div>
+            
+            <div class="phase-sep">Bans 1</div>
+            <div class="ban-row">
+                ${rSel('B1','ban')} ${rSel('B2','ban')} ${rSel('B3','ban')}
+                <div style="width:10px"></div>
+                ${rSel('R1','ban')} ${rSel('R2','ban')} ${rSel('R3','ban')}
+            </div>
+
+            <div class="phase-sep">Picks 1</div>
+            ${rPick('BP1','B1','p-blue')}
+            ${rPick('RP1','R1','p-red')}
+            ${rPick('RP2','R2','p-red')}
+            ${rPick('BP2','B2','p-blue')}
+            ${rPick('BP3','B3','p-blue')}
+            ${rPick('RP3','R3','p-red')}
+
+            <div class="phase-sep">Bans 2</div>
+            <div class="ban-row">
+                ${rSel('B4','ban')} ${rSel('B5','ban')}
+                <div style="width:10px"></div>
+                ${rSel('R4','ban')} ${rSel('R5','ban')}
+            </div>
+
+            <div class="phase-sep">Picks 2</div>
+            ${rPick('RP4','R4','p-red')}
+            ${rPick('BP4','B4','p-blue')}
+            ${rPick('BP5','B5','p-blue')}
+            ${rPick('RP5','R5','p-red')}
+        </div>`;
+    }
+
+    function rSel(id, type) {
+        const cls = type === 'ban' ? 'ban-input' : 'pick-input';
+        return `
+            <select class="champ-select-mini ${cls}" onchange="updateFearlessLogic()">
+                <option value="">-</option>
+                ${allChamps.map(c => `<option value="${c}">${c}</option>`).join('')}
+            </select>`;
+    }
+
+    function rPick(id, label, side) {
+        return `<div class="pick-row ${side}"><span class="slot-id">${label}</span>${rSel(id,'pick')}</div>`;
+    }
+
+    function updateFearlessLogic() {
+        const picked = new Set();
+        document.querySelectorAll('.pick-input').forEach(s => { if(s.value) picked.add(s.value); });
+
+        ['TOP', 'JGL', 'MID', 'ADC', 'SUP'].forEach(r => document.getElementById(`locked-${r}`).innerHTML = '');
+
+        picked.forEach(name => {
+            for (const [role, list] of Object.entries(championsByRole)) {
+                if (list.includes(name)) {
+                    const imgName = name.replace(/[^a-zA-Z0-9]/g, '');
+                    const img = `<img src="https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/${imgName}.png" 
+                                      class="locked-img" title="${name}" 
+                                      onerror="this.src='https://ddragon.leagueoflegends.com/cdn/14.21.1/img/champion/Jax.png'">`;
+                    document.getElementById(`locked-${role}`).innerHTML += img;
+                }
+            }
+        });
+    }
+
+    async function saveSeries() {
+        alert("Series Data Saved!");
+    }
+
+    window.onload = addSeries;
+</script>
+{% endblock %}
