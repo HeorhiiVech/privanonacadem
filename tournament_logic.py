@@ -1430,6 +1430,7 @@ def fetch_and_store_tournament_data():
     """
     Главная функция для сбора и сохранения всех данных по турниру, включая
     информацию об играх, пути лесников, варды, и события по объектам.
+    Оптимизирована для пропуска игр, которые уже сохранены в базе данных.
     """
     tournament_id = TARGET_TOURNAMENT_ID
     tournament_name = TARGET_TOURNAMENT_NAME_FOR_DB
@@ -1444,6 +1445,23 @@ def fetch_and_store_tournament_data():
         log_message("Failed to connect to database.")
         return -1
     cursor = conn.cursor()
+
+    # --- ОПТИМИЗАЦИЯ: Получаем список уже сохраненных игр из БД ---
+    existing_games = set()
+    try:
+        cursor.execute('SELECT "Series_ID", "Sequence_Number" FROM tournament_games WHERE "Series_ID" IS NOT NULL AND "Sequence_Number" IS NOT NULL')
+        for row in cursor.fetchall():
+            # Обработка как для sqlite3.Row, так и для обычных кортежей
+            try:
+                s_id = row["Series_ID"]
+                seq_num = row["Sequence_Number"]
+            except (IndexError, TypeError):
+                s_id = row[0]
+                seq_num = row[1]
+            existing_games.add((str(s_id), int(seq_num)))
+        log_message(f"Found {len(existing_games)} games already in database. They will be skipped.")
+    except sqlite3.Error as e:
+        log_message(f"Error fetching existing games from DB: {e}. Will proceed without skipping.")
 
     added_or_updated_games_count = 0
     processed_paths_count = 0
@@ -1462,16 +1480,35 @@ def fetch_and_store_tournament_data():
             continue
         log_message(f"Processing match {processed_matches_count}/{total_matches} (S:{series_id})")
 
-        series_end_state_data = download_grid_end_state_data(series_id)
-        time.sleep(API_REQUEST_DELAY / 2)
         games_in_series = get_series_state(series_id)
         if not games_in_series:
             time.sleep(API_REQUEST_DELAY / 2)
             continue
 
+        # Проверяем, есть ли в этой серии хотя бы одна игра, которой еще нет в БД
+        has_new_games = False
+        for game_info in games_in_series:
+            seq_num_check = game_info.get("sequenceNumber")
+            if seq_num_check is not None and (str(series_id), int(seq_num_check)) not in existing_games:
+                has_new_games = True
+                break
+        
+        # Если новых игр в серии нет, пропускаем всю серию и тяжелые запросы
+        if not has_new_games:
+            log_message(f"All games in series {series_id} are already parsed. Skipping series.")
+            continue
+
+        series_end_state_data = download_grid_end_state_data(series_id)
+        time.sleep(API_REQUEST_DELAY / 2)
+
         for game_info in games_in_series:
             sequence_number = game_info.get("sequenceNumber")
             if sequence_number is None:
+                continue
+
+            # --- ОПТИМИЗАЦИЯ: Пропускаем конкретную игру, если она уже в БД ---
+            if (str(series_id), int(sequence_number)) in existing_games:
+                log_message(f"Game with Series:{series_id} Sequence:{sequence_number} is already in DB. Skipping API requests.")
                 continue
 
             summary_data = download_riot_summary_data(series_id, sequence_number)
@@ -1499,6 +1536,8 @@ def fetch_and_store_tournament_data():
                 added_or_updated_games_count += 1
                 try:
                     conn.commit()
+                    # Добавляем игру в сет, чтобы избежать дублирования в случае ошибки
+                    existing_games.add((str(series_id), int(sequence_number)))
                 except sqlite3.Error as e:
                     log_message(f"DB Commit Error G:{game_id}: {e}")
                     conn.rollback()
