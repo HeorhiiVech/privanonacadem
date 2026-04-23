@@ -25,7 +25,7 @@ from datetime import datetime, date
 from database import get_db_connection, init_db
 import json
 import sqlite3
-
+from search_draft import get_filter_options, get_filtered_drafts
 from scrims_logic import (
     get_champion_icon_html, 
     get_champion_data, 
@@ -160,6 +160,39 @@ def update_scrims_route():
     time_filter = request.form.get('time_filter', 'All Time')
     side_filter = request.form.get('side_filter', 'all')
     return redirect(url_for('scrims', time_filter=time_filter, side_filter=side_filter))
+
+
+@app.route('/search_draft', methods=['GET'])
+def search_draft():
+    filters = {
+        'league': request.args.get('league', ''),
+        'patch': request.args.get('patch', ''),
+        'team': request.args.get('team', ''),
+        'result': request.args.get('result', ''),
+        'game_number': request.args.get('game_number', ''),
+        'champion': request.args.get('champion', '')
+    }
+    
+    options = get_filter_options()
+    champion_data = get_champion_data()
+    
+    drafts = []
+    has_filters = False
+    
+    if filters['league'] != '' or filters['patch'] != '' or filters['team'] != '' or filters['result'] != '' or filters['game_number'] != '' or filters['champion'] != '':
+        has_filters = True
+        
+    if has_filters == True:
+        drafts = get_filtered_drafts(filters)
+        
+    return render_template(
+        'search_draft.html',
+        filters=filters,
+        options=options,
+        drafts=drafts,
+        has_filters=has_filters,
+        champion_data=champion_data
+    )
 
 @app.route('/tournament')
 def tournament():

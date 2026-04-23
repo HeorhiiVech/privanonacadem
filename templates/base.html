@@ -22,6 +22,7 @@
                 <li><a href="{{ url_for('wards') }}" class="nav-link {% if request.endpoint == 'wards' %}active{% endif %}">Wards</a></li>
                 <li><a href="{{ url_for('proximity') }}" class="nav-link {% if request.endpoint == 'proximity' %}active{% endif %}">Proximity</a></li>
                 <li><a href="{{ url_for('start_positions') }}" class="nav-link {% if request.endpoint == 'start_positions' %}active{% endif %}">Start Positions</a></li>
+                <li><a href="{{ url_for('search_draft') }}" class="nav-link {% if request.endpoint == 'search_draft' %}active{% endif %}">Search Draft</a></li>
                 <!--<li><a href="{{ url_for('fearless') }}" class="nav-link {% if request.endpoint == 'fearless' %}active{% endif %}">Fearless Drafting</a></li>-->
                 <!--<li><a href="{{ url_for('soloq') }}" class="nav-link {% if request.endpoint == 'soloq' %}active{% endif %}">SoloQ Stats</a></li>-->
             </ul>
