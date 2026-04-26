@@ -174,7 +174,7 @@
     <div class="drafts-grid">
         {% for game in drafts %}
             <div class="match-block-compact">
-                <h5>{{ game.blue_team_tag }} vs {{ game.red_team_tag }}</h5>
+                <h5>{{ game.draft_left_team_tag }} vs {{ game.draft_right_team_tag }}</h5>
                 <div class="draft-meta-compact">
                     <span>Game {{ game.sequence_number }} | Patch {{ game.patch }}</span>
                     <span>{{ game.date[:10] }}</span>
@@ -183,9 +183,9 @@
                 <table class="draft-table-mini">
                     <thead>
                         <tr>
-                            <th><span class="res-tag {{ 'res-win' if game.blue_result == 'WIN' else 'res-loss' }}">{{ game.blue_result }}</span></th>
+                            <th><span class="res-tag {{ 'res-win' if game.draft_left_result == 'WIN' else 'res-loss' }}">{{ game.draft_left_result }}</span></th>
                             <th></th>
-                            <th><span class="res-tag {{ 'res-win' if game.red_result == 'WIN' else 'res-loss' }}">{{ game.red_result }}</span></th>
+                            <th><span class="res-tag {{ 'res-win' if game.draft_right_result == 'WIN' else 'res-loss' }}">{{ game.draft_right_result }}</span></th>
                         </tr>
                     </thead>
                     <tbody>
