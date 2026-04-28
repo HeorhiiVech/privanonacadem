@@ -151,6 +151,15 @@
             </select>
         </div>
         <div class="filter-group">
+            <label for="game_number">Game</label>
+            <select name="game_number" id="game_number">
+                <option value="">-- All --</option>
+                {% for gn in options.game_numbers %}
+                    <option value="{{ gn }}" {% if filters.game_number|string == gn|string %}selected{% endif %}>Game {{ gn }}</option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="filter-group">
             <label for="patch">Patch</label>
             <select name="patch" id="patch">
                 <option value="">-- All --</option>
@@ -176,7 +185,7 @@
             <div class="match-block-compact">
                 <h5>{{ game.draft_left_team_tag }} vs {{ game.draft_right_team_tag }}</h5>
                 <div class="draft-meta-compact">
-                    <span>Game {{ game.sequence_number }} | Patch {{ game.patch }}</span>
+                    <span>Game {{ game.display_game_number }} | Patch {{ game.patch }}</span>
                     <span>{{ game.date[:10] }}</span>
                 </div>
                 

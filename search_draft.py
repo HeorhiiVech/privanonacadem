@@ -37,20 +37,35 @@ def get_filter_options():
         ''')
         options['teams'] = [row['team'] for row in cursor.fetchall()]
         
-        cursor.execute('SELECT DISTINCT Sequence_Number FROM tournament_games WHERE Sequence_Number IS NOT NULL AND Sequence_Number > 0 ORDER BY Sequence_Number ASC')
-        options['game_numbers'] = [row['Sequence_Number'] for row in cursor.fetchall()]
+        # Получаем все уникальные номера игр, обрабатываем 0 как 1
+        cursor.execute('SELECT DISTINCT Sequence_Number FROM tournament_games WHERE Sequence_Number IS NOT NULL ORDER BY Sequence_Number ASC')
+        raw_seq_nums = [row['Sequence_Number'] for row in cursor.fetchall()]
+        processed_nums = set()
+        
+        for num in raw_seq_nums:
+            if num <= 0:
+                processed_nums.add(1)
+            else:
+                processed_nums.add(num)
+                
+        options['game_numbers'] = sorted(list(processed_nums))
         
         pick_slots = [7, 8, 9, 10, 11, 12, 17, 18, 19, 20]
         union_query = " UNION ".join([f"SELECT DISTINCT Draft_Action_{i}_ChampName as champ FROM tournament_games" for i in pick_slots])
         cursor.execute(union_query)
         
-        champs = set(row['champ'] for row in cursor.fetchall() if row['champ'] and row['champ'] != 'N/A')
+        champs = set()
+        for row in cursor.fetchall():
+            if row['champ'] and row['champ'] != 'N/A':
+                champs.add(row['champ'])
+                
         options['champions'] = sorted(list(champs))
         
     except sqlite3.Error as e:
         print(f"Error fetching filter options: {e}")
     finally:
         conn.close()
+        
     return options
 
 def get_filtered_drafts(filters):
@@ -81,9 +96,18 @@ def get_filtered_drafts(filters):
             query += " AND (Blue_Team_Name = ? OR Red_Team_Name = ?)"
             params.extend([filters['team'], filters['team']])
 
+        # ИСПРАВЛЕНИЕ: Логика фильтрации номера игры
         if filters.get('game_number'):
-            query += " AND Sequence_Number = ?"
-            params.append(filters['game_number'])
+            try:
+                g_num = int(filters['game_number'])
+                if g_num == 1:
+                    # Если пользователь ищет Game 1, показываем и 0, и 1 из базы
+                    query += " AND (Sequence_Number = 1 OR Sequence_Number = 0)"
+                else:
+                    query += " AND Sequence_Number = ?"
+                    params.append(g_num)
+            except (ValueError, TypeError):
+                pass
 
         blue_pick_slots = [7, 10, 11, 18, 19]
         red_pick_slots = [8, 9, 12, 17, 20]
@@ -116,57 +140,80 @@ def get_filtered_drafts(filters):
                 params.extend([selected_champ] * len(blue_pick_slots))
                 params.extend([selected_champ] * len(red_pick_slots))
 
-        query += ' ORDER BY "Date" DESC LIMIT 50'
+        query += ' ORDER BY "Date" DESC, Sequence_Number ASC LIMIT 50'
         
         cursor.execute(query, params)
         rows = cursor.fetchall()
 
         for row in rows:
             game = dict(row)
+            
             draft_actions_dict = {}
             for i in range(1, 21):
-                champ_name = game.get(f"Draft_Action_{i}_ChampName")
-                draft_actions_dict[i] = {"Champion_Name": champ_name if champ_name else "N/A"}
+                c_name = game.get(f"Draft_Action_{i}_ChampName")
+                if not c_name:
+                    c_name = "N/A"
+                draft_actions_dict[i] = {"Champion_Name": c_name}
 
             winner = game.get('Winner_Side', 'Unknown')
             blue_team = game.get('Blue_Team_Name', 'Unknown Blue')
             red_team = game.get('Red_Team_Name', 'Unknown Red')
             
-            blue_result = "WIN" if winner == "Blue" else ("LOSS" if winner == "Red" else "-")
-            red_result = "WIN" if winner == "Red" else ("LOSS" if winner == "Blue" else "-")
+            if winner == "Blue":
+                blue_res = "WIN"
+                red_res = "LOSS"
+            elif winner == "Red":
+                blue_res = "LOSS"
+                red_res = "WIN"
+            else:
+                blue_res = "-"
+                red_res = "-"
 
-            # --- Логика проверки перевернутого драфта ---
             blue_map_champs = set()
             for role in ["TOP", "JGL", "MID", "BOT", "SUP"]:
-                champ = game.get(f"Blue_{role}_Champ")
-                if champ and champ != "N/A":
-                    blue_map_champs.add(champ)
+                c = game.get(f"Blue_{role}_Champ")
+                if c and c != "N/A":
+                    blue_map_champs.add(c)
                     
             first_pick_champs = []
             for seq in [7, 10, 11, 18, 19]:
-                champ = game.get(f"Draft_Action_{seq}_ChampName")
-                if champ and champ != "N/A":
-                    first_pick_champs.append(champ)
+                c = game.get(f"Draft_Action_{seq}_ChampName")
+                if c and c != "N/A":
+                    first_pick_champs.append(c)
                     
-            match_count = sum(1 for c in first_pick_champs if c in blue_map_champs)
-            is_draft_swapped = (match_count < 3 and len(first_pick_champs) > 0)
+            m_count = sum(1 for c in first_pick_champs if c in blue_map_champs)
+            
+            is_swapped = False
+            if m_count < 3 and len(first_pick_champs) > 0:
+                is_swapped = True
 
-            # Определяем, кто реально слева (First Pick), а кто справа
-            draft_left_team = red_team if is_draft_swapped else blue_team
-            draft_right_team = blue_team if is_draft_swapped else red_team
-            draft_left_result = red_result if is_draft_swapped else blue_result
-            draft_right_result = blue_result if is_draft_swapped else red_result
+            if is_swapped:
+                d_left_team = red_team
+                d_right_team = blue_team
+                d_left_res = red_res
+                d_right_res = blue_res
+            else:
+                d_left_team = blue_team
+                d_right_team = red_team
+                d_left_res = blue_res
+                d_right_res = red_res
+
+            # ИСПРАВЛЕНИЕ: Превращаем 0 в 1 для отображения
+            raw_seq = game.get('Sequence_Number', 0)
+            if raw_seq == 0:
+                display_num = 1
+            else:
+                display_num = raw_seq
 
             drafts.append({
                 "game_id": game.get('Game_ID'),
                 "date": game.get('Date', 'N/A'),
                 "patch": game.get('Patch', 'N/A'),
-                "sequence_number": game.get('Sequence_Number', 0),
-                # Используем новые переменные для вывода в HTML
-                "draft_left_team_tag": draft_left_team,
-                "draft_right_team_tag": draft_right_team,
-                "draft_left_result": draft_left_result,
-                "draft_right_result": draft_right_result,
+                "display_game_number": display_num,  # Используем это поле
+                "draft_left_team_tag": d_left_team,
+                "draft_right_team_tag": d_right_team,
+                "draft_left_result": d_left_res,
+                "draft_right_result": d_right_res,
                 "draft_actions_dict": draft_actions_dict
             })
 
@@ -175,3 +222,5 @@ def get_filtered_drafts(filters):
     finally:
         conn.close()
     return drafts
+        
+  
