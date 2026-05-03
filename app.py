@@ -168,6 +168,7 @@ def search_draft():
     
     # Собираем все фильтры, используя getlist для массивов и get для одиночных значений
     filters = {
+        'game_id': request.args.get('game_id'),
         'leagues': request.args.getlist('league'),
         'leagues_exclude': request.args.getlist('league_exclude'),
         'teams': request.args.getlist('team'),
@@ -196,6 +197,8 @@ def search_draft():
 
     has_filters = False
     
+    if is_active(filters.get('game_id')):
+        has_filters = True
     if is_active(filters['leagues']):
         has_filters = True
     if is_active(filters['leagues_exclude']):

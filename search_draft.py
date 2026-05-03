@@ -17,7 +17,7 @@ def get_filter_options():
         'patches': [],
         'teams': [],
         'champions': [],
-        'game_numbers': [1, 2, 3, 4, 5],  # Ставим жестко 1-5, так как теперь мы вычисляем их "на лету"
+        'game_numbers': [1, 2, 3, 4, 5],
         'leagues': list(load_leagues().keys()),
         'pick_positions': ['B1', 'B2', 'B3', 'B4', 'B5', 'R1', 'R2', 'R3', 'R4', 'R5']
     }
@@ -38,8 +38,6 @@ def get_filter_options():
         ''')
         options['teams'] = [row['team'] for row in cursor.fetchall()]
         
-        # Блок с получением Sequence_Number убран, так как номера жестко заданы выше
-
         pick_slots = [7, 8, 9, 10, 11, 12, 17, 18, 19, 20]
         union_query = " UNION ".join([f"SELECT DISTINCT Draft_Action_{i}_ChampName as champ FROM tournament_games" for i in pick_slots])
         cursor.execute(union_query)
@@ -69,7 +67,7 @@ def get_filtered_drafts(filters):
     try:
         cursor = conn.cursor()
         
-        # Внедряем SQL для вычисления реального номера игры по 2-часовому окну (7200 сек)
+        # Обновленный SQL: теперь с блоком SeriesAgg, который собирает ссылки на все игры серии
         query = """
         WITH MatchHistory AS (
             SELECT *,
@@ -107,13 +105,23 @@ def get_filtered_drafts(filters):
                     ORDER BY "Date"
                 ) as Calculated_Game_Number
             FROM SeriesIDs
+        ),
+        SeriesAgg AS (
+            -- Группируем все ID матчей из одной серии в строку формата "1|ID1,2|ID2"
+            SELECT T1, T2, series_group_id,
+                   GROUP_CONCAT(Calculated_Game_Number || '|' || Game_ID) as series_links,
+                   MAX(Calculated_Game_Number) as total_games
+            FROM FinalCalculatedData
+            GROUP BY T1, T2, series_group_id
         )
-        SELECT * FROM FinalCalculatedData WHERE 1=1
+        SELECT f.*, a.series_links, a.total_games 
+        FROM FinalCalculatedData f
+        JOIN SeriesAgg a ON f.T1 = a.T1 AND f.T2 = a.T2 AND f.series_group_id = a.series_group_id
+        WHERE 1=1
         """
         
         params = []
 
-        # Функция для удаления пустых строк из списков
         def clean_list(val):
             if not val:
                 return []
@@ -195,7 +203,6 @@ def get_filtered_drafts(filters):
                     
                 placeholders = ','.join(['?'] * len(g_nums))
                 
-                # Используем Calculated_Game_Number вместо Sequence_Number
                 query += f" AND Calculated_Game_Number IN ({placeholders})"
                 params.extend(g_nums)
             except (ValueError, TypeError):
@@ -259,7 +266,6 @@ def get_filtered_drafts(filters):
         if excluded_champs:
             build_champ_query(excluded_champs, exclude=True)
             
-        # Добавляем фильтр по результату только если выбран чемпион
         selected_result = filters.get('result')
         if selected_result and selected_result != "":
             if selected_champs:
@@ -289,8 +295,10 @@ def get_filtered_drafts(filters):
                 if result_conditions:
                     joined_conditions = ' OR '.join(result_conditions)
                     query += f" AND ({joined_conditions})"
-
-        # Сортируем с использованием нового поля
+        selected_game_id = filters.get('game_id')
+        if selected_game_id and selected_game_id != "":
+            query += " AND f.Game_ID = ?"
+            params.append(selected_game_id)
         query += ' ORDER BY "Date" DESC, Calculated_Game_Number ASC LIMIT 50'
         
         cursor.execute(query, params)
@@ -352,8 +360,24 @@ def get_filtered_drafts(filters):
                 d_left_res = blue_res
                 d_right_res = red_res
 
-            # Берем вычисленный номер игры
             display_num = game.get('Calculated_Game_Number', 1)
+
+            # --- НОВАЯ ЛОГИКА: Парсинг кнопок серии ---
+            series_links_raw = game.get('series_links', '')
+            series_games = []
+            if series_links_raw:
+                for pair in series_links_raw.split(','):
+                    try:
+                        g_num, g_id = pair.split('|')
+                        series_games.append({
+                            "game_number": int(g_num),
+                            "game_id": g_id
+                        })
+                    except:
+                        pass
+            
+            # Сортируем игры: 1, 2, 3...
+            series_games = sorted(series_games, key=lambda x: x['game_number'])
 
             drafts.append({
                 "game_id": game.get('Game_ID'),
@@ -364,7 +388,9 @@ def get_filtered_drafts(filters):
                 "draft_right_team_tag": d_right_team,
                 "draft_left_result": d_left_res,
                 "draft_right_result": d_right_res,
-                "draft_actions_dict": draft_actions_dict
+                "draft_actions_dict": draft_actions_dict,
+                "series_games": series_games,               # <-- Передаем на фронт
+                "total_games_in_series": game.get('total_games', 1) # <-- Всего игр в серии
             })
 
     except sqlite3.Error as e:
