@@ -17,7 +17,7 @@ def get_filter_options():
         'patches': [],
         'teams': [],
         'champions': [],
-        'game_numbers': [],
+        'game_numbers': [1, 2, 3, 4, 5],  # Ставим жестко 1-5, так как теперь мы вычисляем их "на лету"
         'leagues': list(load_leagues().keys()),
         'pick_positions': ['B1', 'B2', 'B3', 'B4', 'B5', 'R1', 'R2', 'R3', 'R4', 'R5']
     }
@@ -38,18 +38,8 @@ def get_filter_options():
         ''')
         options['teams'] = [row['team'] for row in cursor.fetchall()]
         
-        cursor.execute('SELECT DISTINCT Sequence_Number FROM tournament_games WHERE Sequence_Number IS NOT NULL ORDER BY Sequence_Number ASC')
-        raw_seq_nums = [row['Sequence_Number'] for row in cursor.fetchall()]
-        processed_nums = set()
-        
-        for num in raw_seq_nums:
-            if num <= 0:
-                processed_nums.add(1)
-            else:
-                processed_nums.add(num)
-                
-        options['game_numbers'] = sorted(list(processed_nums))
-        
+        # Блок с получением Sequence_Number убран, так как номера жестко заданы выше
+
         pick_slots = [7, 8, 9, 10, 11, 12, 17, 18, 19, 20]
         union_query = " UNION ".join([f"SELECT DISTINCT Draft_Action_{i}_ChampName as champ FROM tournament_games" for i in pick_slots])
         cursor.execute(union_query)
@@ -78,7 +68,49 @@ def get_filtered_drafts(filters):
 
     try:
         cursor = conn.cursor()
-        query = "SELECT * FROM tournament_games WHERE 1=1"
+        
+        # Внедряем SQL для вычисления реального номера игры по 2-часовому окну (7200 сек)
+        query = """
+        WITH MatchHistory AS (
+            SELECT *,
+                CASE WHEN Blue_Team_Name < Red_Team_Name THEN Blue_Team_Name ELSE Red_Team_Name END as T1,
+                CASE WHEN Blue_Team_Name < Red_Team_Name THEN Red_Team_Name ELSE Blue_Team_Name END as T2,
+                LAG("Date") OVER (
+                    PARTITION BY 
+                        CASE WHEN Blue_Team_Name < Red_Team_Name THEN Blue_Team_Name ELSE Red_Team_Name END,
+                        CASE WHEN Blue_Team_Name < Red_Team_Name THEN Red_Team_Name ELSE Blue_Team_Name END
+                    ORDER BY "Date"
+                ) as prev_date
+            FROM tournament_games
+        ),
+        SeriesMarkers AS (
+            SELECT *,
+                CASE 
+                    WHEN prev_date IS NULL THEN 1
+                    WHEN (strftime('%s', "Date") - strftime('%s', prev_date)) > 7200 THEN 1 
+                    ELSE 0 
+                END as is_new_series
+            FROM MatchHistory
+        ),
+        SeriesIDs AS (
+            SELECT *,
+                SUM(is_new_series) OVER (
+                    PARTITION BY T1, T2 
+                    ORDER BY "Date"
+                ) as series_group_id
+            FROM SeriesMarkers
+        ),
+        FinalCalculatedData AS (
+            SELECT *,
+                ROW_NUMBER() OVER (
+                    PARTITION BY T1, T2, series_group_id 
+                    ORDER BY "Date"
+                ) as Calculated_Game_Number
+            FROM SeriesIDs
+        )
+        SELECT * FROM FinalCalculatedData WHERE 1=1
+        """
+        
         params = []
 
         # Функция для удаления пустых строк из списков
@@ -163,11 +195,8 @@ def get_filtered_drafts(filters):
                     
                 placeholders = ','.join(['?'] * len(g_nums))
                 
-                if 1 in g_nums:
-                    query += f" AND (Sequence_Number IN ({placeholders}) OR Sequence_Number = 0)"
-                else:
-                    query += f" AND Sequence_Number IN ({placeholders})"
-                    
+                # Используем Calculated_Game_Number вместо Sequence_Number
+                query += f" AND Calculated_Game_Number IN ({placeholders})"
                 params.extend(g_nums)
             except (ValueError, TypeError):
                 pass
@@ -261,7 +290,8 @@ def get_filtered_drafts(filters):
                     joined_conditions = ' OR '.join(result_conditions)
                     query += f" AND ({joined_conditions})"
 
-        query += ' ORDER BY "Date" DESC, Sequence_Number ASC LIMIT 50'
+        # Сортируем с использованием нового поля
+        query += ' ORDER BY "Date" DESC, Calculated_Game_Number ASC LIMIT 50'
         
         cursor.execute(query, params)
         rows = cursor.fetchall()
@@ -322,11 +352,8 @@ def get_filtered_drafts(filters):
                 d_left_res = blue_res
                 d_right_res = red_res
 
-            raw_seq = game.get('Sequence_Number', 0)
-            if raw_seq <= 0:
-                display_num = 1
-            else:
-                display_num = raw_seq
+            # Берем вычисленный номер игры
+            display_num = game.get('Calculated_Game_Number', 1)
 
             drafts.append({
                 "game_id": game.get('Game_ID'),
